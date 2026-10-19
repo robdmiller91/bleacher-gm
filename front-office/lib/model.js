@@ -225,3 +225,142 @@ export function heightLabel(h) {
   if (!n) return h || "—";
   return `${Math.floor(n / 12)}'${n % 12}"`;
 }
+
+// ---------------------------------------------------------------------------
+// Roster Lab / Team Blueprint helpers (ported from the Streamlit app)
+// ---------------------------------------------------------------------------
+
+// Simple dynasty aging heuristic: value climbs toward a position's peak age,
+// then decays at a position-specific rate. Directional, not a forecast.
+export const VALUE_CURVES = {
+  QB: { peak: 29, growth: 0.035, decline: 0.045 },
+  RB: { peak: 24, growth: 0.06, decline: 0.15 },
+  WR: { peak: 26, growth: 0.05, decline: 0.07 },
+  TE: { peak: 27, growth: 0.045, decline: 0.06 },
+};
+
+export function projectValue(value, pos, age, years) {
+  if (!value || !age) return value || 0;
+  const c = VALUE_CURVES[pos] || { peak: 27, growth: 0.045, decline: 0.07 };
+  let a = age;
+  let v = value;
+  for (let i = 0; i < years; i++) {
+    v *= a < c.peak ? 1 + c.growth : 1 - c.decline;
+    a += 1;
+  }
+  return v;
+}
+
+export function trajectory(players, rosterId, years = 3) {
+  const roster = Object.values(players).filter((p) => p.owner === rosterId && p.value > 0);
+  return Array.from({ length: years + 1 }, (_, y) =>
+    roster.reduce((s, p) => s + projectValue(p.value, p.pos, p.age, y), 0),
+  );
+}
+
+export function outlookLabels(traj) {
+  const base = traj[0] || 1;
+  return traj.slice(1).map((v) => {
+    const r = v / base;
+    return r >= 1.02 ? "Ascend" : r >= 0.92 ? "Contend" : r >= 0.78 ? "Reload" : "Rebuild";
+  });
+}
+export const OUTLOOK_COLORS = { Ascend: "#22c55e", Contend: "#3b82f6", Reload: "#f59e0b", Rebuild: "#ef4444" };
+
+export function gradeFromRank(rank, total) {
+  if (total <= 1) return 10;
+  return Math.max(1, Math.round(10 - ((rank - 1) / (total - 1)) * 9));
+}
+export const gradeColor = (g) => (g >= 8 ? "#22c55e" : g >= 6 ? "#3b82f6" : g >= 4 ? "#f59e0b" : "#ef4444");
+
+export function rosterArchetype(ranks) {
+  const keys = Object.keys(ranks);
+  const strongest = keys.reduce((a, b) => (ranks[b] < ranks[a] ? b : a));
+  const weakest = keys.reduce((a, b) => (ranks[b] > ranks[a] ? b : a));
+  const spread = ranks[weakest] - ranks[strongest];
+  if (spread <= 3) return "Well Rounded";
+  if (ranks[strongest] <= 3 && spread >= 6) return `${strongest}-Heavy`;
+  return ranks[strongest] <= 3 ? "Top Heavy" : "Balanced Build";
+}
+
+export function slotEligible(slot, eligible) {
+  if (eligible.includes(slot)) return true;
+  if (slot === "FLEX") return eligible.some((e) => ["RB", "WR", "TE"].includes(e));
+  if (slot === "SUPER_FLEX") return eligible.some((e) => ["QB", "RB", "WR", "TE"].includes(e));
+  if (slot === "REC_FLEX") return eligible.some((e) => ["WR", "TE"].includes(e));
+  if (slot === "WRRB_FLEX") return eligible.some((e) => ["RB", "WR"].includes(e));
+  return false;
+}
+
+// Best possible starting lineup by dynasty value, filling the scarcest slots first.
+export function optimalStarters(roster, rosterPositions) {
+  const slots = rosterPositions.filter((s) => !["BN", "IR", "TAXI"].includes(s));
+  const pool = roster.filter((p) => p.value > 0).map((p) => ({ ...p, elig: p.eligible || [p.pos] }));
+  const order = [...slots].sort(
+    (a, b) => pool.filter((p) => slotEligible(a, p.elig)).length - pool.filter((p) => slotEligible(b, p.elig)).length,
+  );
+  const used = new Set();
+  for (const slot of order) {
+    const best = pool
+      .filter((p) => !used.has(p.id) && slotEligible(slot, p.elig))
+      .sort((a, b) => b.value - a.value)[0];
+    if (best) used.add(best.id);
+  }
+  return used;
+}
+
+export function starterValueTotals(teams, players, rosterPositions) {
+  const all = Object.values(players);
+  const out = {};
+  for (const t of teams) {
+    const roster = all.filter((p) => p.owner === t.rosterId);
+    const ids = optimalStarters(roster, rosterPositions);
+    out[t.rosterId] = roster.filter((p) => ids.has(p.id)).reduce((s, p) => s + p.value, 0);
+  }
+  return out;
+}
+
+// A team's share of a league-wide total and its rank (1 = biggest share).
+export function shareOf(totals, rosterId) {
+  const vals = Object.values(totals);
+  const sum = vals.reduce((a, b) => a + b, 0) || 1;
+  const mine = totals[rosterId] || 0;
+  return { pct: (mine / sum) * 100, rank: 1 + vals.filter((v) => v > mine).length };
+}
+
+// Asset lists for pickers and the trade calculator.
+export function playerAsset(p) {
+  return { id: p.id, kind: "player", label: p.name, value: p.value, owner: p.owner, p };
+}
+export function pickAsset(k) {
+  const bits = [];
+  if (k.slotLabel) bits.push(`${k.officialSlot ? "" : "Proj "}${k.slotLabel}${k.tier ? ` · ${k.tier}` : ""}`);
+  bits.push(k.traded ? `via ${k.originalName}` : "Own pick");
+  return { id: k.id, kind: "pick", label: k.label, sub: bits.join(" · "), value: k.value, owner: k.owner, k };
+}
+export function teamAssets(data, rosterId) {
+  return {
+    players: Object.values(data.players)
+      .filter((p) => p.owner === rosterId && p.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .map(playerAsset),
+    picks: data.picks.filter((k) => k.owner === rosterId).map(pickAsset),
+  };
+}
+
+// Apply hypothetical moves. With a partner, outgoing assets go to them;
+// without one they simply leave the league (one-sided sandbox).
+export function applyMoves(data, give, get, me, partner) {
+  const players = { ...data.players };
+  const picks = data.picks.map((k) => ({ ...k }));
+  const move = (a, to) => {
+    if (a.kind === "player") players[a.id] = { ...players[a.id], owner: to, status: to == null ? "FA" : "Bench" };
+    else {
+      const k = picks.find((x) => x.id === a.id);
+      if (k) k.owner = to == null ? -1 : to;
+    }
+  };
+  give.forEach((a) => move(a, partner ?? null));
+  get.forEach((a) => move(a, me));
+  return { players, picks, teams: computeTeams(data.teams, players, picks) };
+}

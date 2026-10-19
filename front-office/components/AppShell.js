@@ -13,7 +13,10 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: "home" },
   { href: "/rankings", label: "Rankings", icon: "rankings" },
   { href: "/trade", label: "Trade", icon: "trade" },
+  { href: "/roster-lab", label: "Roster Lab", icon: "lab" },
+  { href: "/blueprint", label: "Blueprint", icon: "blueprint" },
   { href: "/league", label: "League", icon: "league" },
+  { href: "/history", label: "History", icon: "history" },
 ];
 
 function GlobalSearch() {

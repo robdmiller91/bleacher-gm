@@ -150,8 +150,13 @@ export async function buildLeague() {
 
   // ---- Players ----
   const fcById = {};
+  const fcPicks = {}; // FantasyCalc also prices picks, e.g. "2027 Early 1st", "2027 1st", "2026 Pick 1.04"
   for (const row of Array.isArray(fcRaw) ? fcRaw : []) {
     const pl = row.player || {};
+    if (String(pl.position || "").toUpperCase() === "PICK" && pl.name) {
+      fcPicks[pl.name.toLowerCase().trim()] = Number(row.value) || 0;
+      continue;
+    }
     const sid = pl.sleeperId || row.sleeperId;
     if (!sid) continue;
     fcById[String(sid)] = {
@@ -270,30 +275,47 @@ export async function buildLeague() {
   const ROUND_BASE = { 1: 4300, 2: 1800, 3: 800, 4: 350, 5: 150 };
   const nameOf = Object.fromEntries(teamsBase.map((t) => [t.rosterId, t.name]));
 
+  const ROUND_WORD = { 1: "1st", 2: "2nd", 3: "3rd" };
+  const third = Math.ceil(totalSlots / 3);
+
+  // Prefer FantasyCalc's market price for the pick (same scale as player values),
+  // most specific name first; fall back to the round/slot curve model.
+  const pickValue = (s, r, slot, official) => {
+    const word = ROUND_WORD[r] || `${r}th`;
+    const tier = slot ? (slot <= third ? "early" : slot <= third * 2 ? "mid" : "late") : null;
+    const mult = slot ? slotMultipliers(totalSlots, r)[slot] || 1 : 1;
+    const exact = slot && official ? fcPicks[`${s} pick ${r}.${String(slot).padStart(2, "0")}`] : null;
+    if (exact) return { value: exact, source: "FantasyCalc" };
+    const tiered = tier ? fcPicks[`${s} ${tier} ${word}`] : null;
+    if (tiered) return { value: tiered, source: "FantasyCalc" };
+    const generic = fcPicks[`${s} ${word}`];
+    if (generic) return { value: Math.round(generic * mult), source: "FantasyCalc" };
+    const yearFactor = { 0: 1, 1: 0.88, 2: 0.76 }[s - season] ?? 0.7;
+    return { value: Math.round((ROUND_BASE[r] ?? 75) * yearFactor * mult), source: "Model" };
+  };
+
   const picks = [];
   for (const [key, owner] of ownership) {
     const [s, r, orig] = key.split("|").map(Number);
     const order = orders[s] || { map: {}, official: false };
     const slot = order.map[orig] || null;
-    const mult = slot ? slotMultipliers(totalSlots, r)[slot] || 1 : 1;
-    const yearFactor = { 0: 1, 1: 0.88, 2: 0.76 }[s - season] ?? 0.7;
-    const yy = String(s).slice(2);
-    const label =
-      slot && s === seasons[0]
-        ? `'${yy} ${r}.${String(slot).padStart(2, "0")}`
-        : `'${yy} Round ${r}`;
+    const { value, source } = pickValue(s, r, slot, order.official);
+    const tier = slot ? (slot <= third ? "Early" : slot <= third * 2 ? "Mid" : "Late") : null;
     picks.push({
       id: `pk-${s}-${r}-${orig}`,
       season: s,
       round: r,
       slot,
+      slotLabel: slot ? `${r}.${String(slot).padStart(2, "0")}` : null,
+      tier,
       officialSlot: order.official,
       original: orig,
       originalName: nameOf[orig] || `Roster ${orig}`,
       owner,
       traded: owner !== orig,
-      value: Math.round((ROUND_BASE[r] ?? 75) * yearFactor * mult),
-      label,
+      value,
+      valueSource: source,
+      label: `${s} ${ROUND_WORD[r] || `${r}th`}`,
     });
   }
   picks.sort((a, b) => a.season - b.season || a.round - b.round || (a.slot || 99) - (b.slot || 99));

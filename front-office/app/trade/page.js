@@ -1,80 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useState } from "react";
 import { useApp } from "@/components/AppShell";
-import { Img, PageHead, Pos } from "@/components/ui";
-import { computeTeams, fmt, ordinal } from "@/lib/model";
-
-function assetsFor(data, rosterId) {
-  const players = Object.values(data.players)
-    .filter((p) => p.owner === rosterId && p.value > 0)
-    .map((p) => ({ id: p.id, kind: "player", label: p.name, value: p.value, p }));
-  const picks = data.picks
-    .filter((k) => k.owner === rosterId)
-    .map((k) => ({
-      id: k.id,
-      kind: "pick",
-      label: k.label,
-      sub: k.traded ? `via ${k.originalName}` : "Own pick",
-      value: k.value,
-      k,
-    }));
-  return [...players, ...picks].sort((a, b) => b.value - a.value);
-}
-
-function AssetRow({ a, on, onClick }) {
-  const { openPlayer } = useApp();
-  return (
-    <button className={`asset${on ? " on" : ""}`} onClick={onClick}>
-      {a.kind === "player" ? (
-        <Img src={a.p.img} className="headshot" />
-      ) : (
-        <span className="pick-icon">PK</span>
-      )}
-      <span style={{ minWidth: 0 }}>
-        <span className="pname" style={{ display: "block", fontSize: "0.84rem" }}>{a.label}</span>
-        <span className="asset-meta">
-          {a.kind === "player" ? (
-            <>
-              <Pos pos={a.p.pos} rank={a.p.posRank} />
-              <span
-                className="muted small"
-                style={{ textDecoration: "underline dotted", cursor: "pointer" }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openPlayer(a.id);
-                }}
-              >
-                {a.p.team} · details
-              </span>
-            </>
-          ) : (
-            <>
-              <Pos pos="PK" />
-              <span className="muted small">{a.sub}</span>
-            </>
-          )}
-        </span>
-      </span>
-      <span className="asset-val">{fmt(a.value)}</span>
-    </button>
-  );
-}
-
-function AssetPanel({ title, assets, selected, toggle, header }) {
-  const [q, setQ] = useState("");
-  const shown = assets.filter((a) => a.label.toLowerCase().includes(q.toLowerCase()));
-  return (
-    <div className="card">
-      <div className="card-title" style={{ marginBottom: "0.6rem" }}><h3>{title}</h3></div>
-      {header}
-      <input className="input" style={{ width: "100%", margin: "0.4rem 0 0.6rem" }} placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
-      <div className="asset-list">
-        {shown.map((a) => <AssetRow key={a.id} a={a} on={selected.includes(a.id)} onClick={() => toggle(a.id)} />)}
-      </div>
-    </div>
-  );
-}
+import { Img, PageHead } from "@/components/ui";
+import { AssetPanel, PickIcon } from "@/components/assets";
+import { applyMoves, fmt, ordinal, teamAssets } from "@/lib/model";
 
 export default function Trade() {
   const { data, openPlayer } = useApp();
@@ -93,53 +24,35 @@ export default function Trade() {
     if (params.get("get")) setGet([params.get("get")]);
   }, [me]);
 
-  const myAssets = useMemo(() => assetsFor(data, me), [data, me]);
-  const theirAssets = useMemo(() => assetsFor(data, partner), [data, partner]);
+  const myAssets = useMemo(() => teamAssets(data, me), [data, me]);
+  const theirAssets = useMemo(() => teamAssets(data, partner), [data, partner]);
   const toggle = (setter) => (id) => setter((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
-  const giveAssets = myAssets.filter((a) => give.includes(a.id));
-  const getAssets = theirAssets.filter((a) => get.includes(a.id));
+  const allMine = [...myAssets.players, ...myAssets.picks];
+  const allTheirs = [...theirAssets.players, ...theirAssets.picks];
+  const giveAssets = allMine.filter((a) => give.includes(a.id));
+  const getAssets = allTheirs.filter((a) => get.includes(a.id));
   const giveTotal = giveAssets.reduce((s, a) => s + a.value, 0);
   const getTotal = getAssets.reduce((s, a) => s + a.value, 0);
   const diff = getTotal - giveTotal;
-  const bigger = Math.max(giveTotal, getTotal, 1);
-  const pct = diff / bigger;
+  const pct = diff / Math.max(giveTotal, getTotal, 1);
 
-  // Re-rank every team with the trade applied.
-  const after = useMemo(() => {
-    if (!giveAssets.length && !getAssets.length) return null;
-    const players = { ...data.players };
-    const picks = data.picks.map((k) => ({ ...k }));
-    const move = (a, to) => {
-      if (a.kind === "player") players[a.id] = { ...players[a.id], owner: to };
-      else picks.find((k) => k.id === a.id).owner = to;
-    };
-    giveAssets.forEach((a) => move(a, partner));
-    getAssets.forEach((a) => move(a, me));
-    return computeTeams(data.teams, players, picks);
-  }, [data, giveAssets, getAssets, partner, me]);
+  const after = useMemo(
+    () => (giveAssets.length || getAssets.length ? applyMoves(data, giveAssets, getAssets, me, partner).teams : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, give.join(), get.join(), partner, me],
+  );
 
-  const verdict = !giveAssets.length || !getAssets.length
-    ? "Add assets to both sides"
-    : Math.abs(pct) < 0.05
-      ? "Fair trade"
-      : diff > 0
-        ? `You win by ${fmt(diff)}`
-        : `You overpay by ${fmt(-diff)}`;
-  const verdictColor = !giveAssets.length || !getAssets.length ? "var(--muted)" : Math.abs(pct) < 0.05 ? "var(--accent)" : diff > 0 ? "var(--good)" : "var(--bad)";
+  const ready = giveAssets.length && getAssets.length;
+  const verdict = !ready ? "Add assets to both sides" : Math.abs(pct) < 0.05 ? "Fair trade" : diff > 0 ? `You win by ${fmt(diff)}` : `You overpay by ${fmt(-diff)}`;
+  const verdictColor = !ready ? "var(--muted)" : Math.abs(pct) < 0.05 ? "var(--accent)" : diff > 0 ? "var(--good)" : "var(--bad)";
+  const pickSources = new Set([...giveAssets, ...getAssets].filter((a) => a.kind === "pick").map((a) => a.k.valueSource));
 
-  const IMPACT = [
-    ["Overall", "totalValueRank"],
-    ["QB", "QBRank"],
-    ["RB", "RBRank"],
-    ["WR", "WRRank"],
-    ["TE", "TERank"],
-    ["Picks", "pickValueRank"],
-  ];
-  const teamRow = (list, rid) => list?.find((t) => t.rosterId === rid);
-  const myNow = teamRow(data.teams, me);
-  const theirNow = teamRow(data.teams, partner);
-  const myAfter = teamRow(after, me);
-  const theirAfter = teamRow(after, partner);
+  const IMPACT = [["Overall", "totalValueRank"], ["QB", "QBRank"], ["RB", "RBRank"], ["WR", "WRRank"], ["TE", "TERank"], ["Picks", "pickValueRank"]];
+  const row = (list, rid) => list?.find((t) => t.rosterId === rid);
+  const myNow = row(data.teams, me);
+  const theirNow = row(data.teams, partner);
+  const myAfter = row(after, me);
+  const theirAfter = row(after, partner);
   const cell = (now, aft, key) => {
     if (!aft) return [<td key="a" className="c">{ordinal(now[key])}</td>, <td key="b" className="c muted">—</td>];
     const d = now[key] - aft[key];
@@ -151,20 +64,20 @@ export default function Trade() {
     ];
   };
 
-  const Side = ({ title, list, total, remove }) => (
+  const side = (title, list, total, remove) => (
     <div className="trade-side">
       <h4><span>{title}</span><span>{fmt(total)}</span></h4>
-      {list.length === 0 && <div className="muted small">Pick assets from the list.</div>}
+      {list.length === 0 && <div className="muted small">Pick players or draft picks from the list.</div>}
       {list.map((a) => (
         <div className="trade-chip" key={a.id}>
-          {a.kind === "player" ? <Img src={a.p.img} className="avatar" /> : <span className="pick-icon" style={{ width: 30, height: 30 }}>PK</span>}
+          {a.kind === "player" ? <Img src={a.p.img} className="avatar" /> : <PickIcon k={a.k} size={30} />}
           <span style={{ minWidth: 0 }}>
             {a.kind === "player" ? (
               <button className="plink" onClick={() => openPlayer(a.id)}><span className="pname" style={{ display: "block", fontSize: "0.82rem" }}>{a.label}</span></button>
             ) : (
               <span className="pname" style={{ display: "block", fontSize: "0.82rem" }}>{a.label}</span>
             )}
-            <span className="muted small">{fmt(a.value)}</span>
+            <span className="muted small">{fmt(a.value)}{a.kind === "pick" ? ` · ${a.sub}` : ""}</span>
           </span>
           <button className="x" onClick={() => remove(a.id)} aria-label="Remove">×</button>
         </div>
@@ -174,7 +87,7 @@ export default function Trade() {
 
   return (
     <>
-      <PageHead title="Trade" accent="Calculator" sub="FantasyCalc dynasty values plus pick values from your league's real ownership. Totals are raw sums, with no extra credit for consolidating several pieces into one.">
+      <PageHead title="Trade" accent="Calculator" sub="Players and draft picks on the same FantasyCalc dynasty scale. Totals are raw sums, with no extra credit for consolidating several pieces into one.">
         <span className="chip">{data.league.superflex ? "Superflex" : "1QB"}</span>
         <span className="chip">{data.league.ppr} PPR</span>
         <span className="chip">{data.league.numTeams} teams</span>
@@ -187,8 +100,8 @@ export default function Trade() {
         <div className="grid">
           <div className="card">
             <div className="trade-sides">
-              <Side title="You send" list={giveAssets} total={giveTotal} remove={(id) => setGive((l) => l.filter((x) => x !== id))} />
-              <Side title="You receive" list={getAssets} total={getTotal} remove={(id) => setGet((l) => l.filter((x) => x !== id))} />
+              {side("You send", giveAssets, giveTotal, (id) => setGive((l) => l.filter((x) => x !== id)))}
+              {side("You receive", getAssets, getTotal, (id) => setGet((l) => l.filter((x) => x !== id)))}
             </div>
             <div className="balance">
               <div className="balance-track">
@@ -203,6 +116,13 @@ export default function Trade() {
                 <div className="balance-mid" />
               </div>
               <div className="verdict" style={{ color: verdictColor }}>{verdict}</div>
+              {pickSources.size > 0 && (
+                <p className="muted small" style={{ textAlign: "center", margin: "0.4rem 0 0" }}>
+                  {pickSources.has("Model")
+                    ? "Some pick values use our round and slot model because FantasyCalc doesn't list that pick."
+                    : "Pick values are FantasyCalc market prices, matched to each pick's projected slot."}
+                </p>
+              )}
             </div>
           </div>
 

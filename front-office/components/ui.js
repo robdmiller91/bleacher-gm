@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { FALLBACK_IMG, POS_VAR } from "@/lib/model";
 import { useApp } from "./AppShell";
 
@@ -17,6 +18,10 @@ const PATHS = {
   target: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8z",
   bolt: "M13 2L4 14h7l-1 8 9-12h-7z",
   refresh: "M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4",
+  blueprint: "M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 18l9 5 9-5",
+  lab: "M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3M7 15h10",
+  history: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 7v5l3 2",
+  star: "M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z",
 };
 
 export function Icon({ name, size = 20 }) {
@@ -116,4 +121,26 @@ export function heatScale(values) {
     if (!invert || cls === "m") return cls;
     return cls === "g" ? "b" : "g";
   };
+}
+
+// Players you've marked as untouchable, saved per team in this browser.
+export function useCornerstones(rosterId) {
+  const key = `cornerstones:${rosterId}`;
+  const [ids, setIds] = useState([]);
+  useEffect(() => {
+    try {
+      setIds(JSON.parse(localStorage.getItem(key) || "[]"));
+    } catch {
+      setIds([]);
+    }
+  }, [key]);
+  const toggle = (id) =>
+    setIds((list) => {
+      const next = list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+      try {
+        localStorage.setItem(key, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  return [ids, toggle];
 }
