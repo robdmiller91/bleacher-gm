@@ -2,7 +2,7 @@ import "./globals.css";
 import AppShell from "@/components/AppShell";
 
 export const metadata = {
-  title: "Front Office",
+  title: "Bleacher GM",
   description: "Dynasty command center for your Sleeper league",
 };
 

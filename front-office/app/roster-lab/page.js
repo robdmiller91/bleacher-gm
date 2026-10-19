@@ -1,27 +1,50 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/components/AppShell";
 import { Img, PageHead, Pos, TeamSelect } from "@/components/ui";
 import { Legend, ShareCard, TrajectoryChart } from "@/components/charts";
 import { PickIcon } from "@/components/assets";
 import {
-  POSITIONS, applyMoves, fmt, ordinal, pickAsset, playerAsset, shareOf, starterValueTotals, trajectory,
+  POSITIONS, applyMoves, devyAssets, fmt, ordinal, parseCsv, pickAsset, playerAsset, shareOf, starterValueTotals, trajectory,
 } from "@/lib/model";
 
-function AssetPicker({ label, pool, selected, onAdd, onRemove, teamName }) {
+const KIND_FILTERS = {
+  all: () => true,
+  players: (a) => a.kind === "player" && !a.p?.devy,
+  picks: (a) => a.kind === "pick",
+  devy: (a) => !!a.p?.devy,
+};
+
+// Where an asset lives: a league team, the free-agent pool, or a college prospect board.
+function whereFrom(a, teamName) {
+  if (a.p?.devy) return a.sub;
+  if (a.owner) return teamName(a.owner);
+  return a.p?.yearsExp === 0 ? "Unrostered rookie" : "Free agent";
+}
+
+function AssetPicker({ label, pool, selected, onAdd, onRemove, teamName, filters }) {
   const { openPlayer } = useApp();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState("all");
   const term = q.trim().toLowerCase();
   const results = pool
     .filter((a) => !selected.some((s) => s.id === a.id))
+    .filter(KIND_FILTERS[kind])
     .filter((a) => !term || `${a.label} ${a.sub || ""} ${a.p?.team || ""} ${teamName(a.owner)}`.toLowerCase().includes(term))
-    .slice(0, 40);
+    .slice(0, kind === "devy" ? 200 : 40);
   const total = selected.reduce((s, a) => s + a.value, 0);
   return (
     <div className="card">
       <div className="card-title"><h3>{label}</h3><b>{fmt(total)}</b></div>
+      {filters && (
+        <div className="seg" style={{ marginBottom: "0.6rem", flexWrap: "wrap" }}>
+          {filters.map(([k, l]) => (
+            <button key={k} className={kind === k ? "on" : ""} onClick={() => { setKind(k); setOpen(true); }}>{l}</button>
+          ))}
+        </div>
+      )}
       <div className="search" style={{ maxWidth: "none", margin: 0 }}>
         <input
           value={q}
@@ -44,8 +67,9 @@ function AssetPicker({ label, pool, selected, onAdd, onRemove, teamName }) {
                   <span className="asset-meta">
                     {a.kind === "player" ? <Pos pos={a.p.pos} rank={a.p.posRank} /> : <Pos pos="PK" />}
                     <span className="muted small">
-                      {a.kind === "pick" ? `${a.sub} · ` : ""}{a.owner ? teamName(a.owner) : a.p?.yearsExp === 0 ? "Unrostered rookie" : "Free agent"}
+                      {a.kind === "pick" ? `${a.sub} · ` : ""}{whereFrom(a, teamName)}
                     </span>
+                    {a.p?.devy && <span className="chip accent">{a.p.devySeason} devy</span>}
                   </span>
                 </span>
                 <b className="small">{fmt(a.value)}</b>
@@ -60,12 +84,12 @@ function AssetPicker({ label, pool, selected, onAdd, onRemove, teamName }) {
           <div className="trade-chip" key={a.id}>
             {a.kind === "player" ? <Img src={a.p.img} className="avatar" /> : <PickIcon k={a.k} size={30} />}
             <span style={{ minWidth: 0 }}>
-              {a.kind === "player" ? (
+              {a.kind === "player" && !a.p?.devy ? (
                 <button className="plink" onClick={() => openPlayer(a.id)}><span className="pname" style={{ display: "block", fontSize: "0.82rem" }}>{a.label}</span></button>
               ) : (
                 <span className="pname" style={{ display: "block", fontSize: "0.82rem" }}>{a.label}</span>
               )}
-              <span className="muted small">{fmt(a.value)} · {a.owner ? teamName(a.owner) : "Free agent"}</span>
+              <span className="muted small">{fmt(a.value)} · {whereFrom(a, teamName)}</span>
             </span>
             <button className="x" onClick={() => onRemove(a.id)} aria-label="Remove">×</button>
           </div>
@@ -142,6 +166,18 @@ export default function RosterLab() {
   const [tab, setTab] = useState("me");
   const teamName = (rid) => data.teams.find((t) => t.rosterId === rid)?.name || "";
 
+  // Next year's rookie class comes from a curated devy board (public/data/devy_prospects.csv),
+  // since those players won't exist in Sleeper until they're drafted.
+  const devySeason = data.league.season + 1;
+  const [devyRows, setDevyRows] = useState([]);
+  useEffect(() => {
+    fetch("/data/devy_prospects.csv")
+      .then((r) => (r.ok ? r.text() : ""))
+      .then((t) => setDevyRows(parseCsv(t)))
+      .catch(() => setDevyRows([]));
+  }, []);
+  const devy = useMemo(() => devyAssets(devyRows, data.picks, devySeason), [devyRows, data.picks, devySeason]);
+
   const givePool = useMemo(
     () => [
       ...Object.values(data.players).filter((p) => p.owner === me && p.value > 0).sort((a, b) => b.value - a.value).map(playerAsset),
@@ -154,8 +190,9 @@ export default function RosterLab() {
     return [
       ...Object.values(data.players).filter((p) => p.value > 0 && ok(p.owner)).sort((a, b) => b.value - a.value).map(playerAsset),
       ...data.picks.filter((k) => ok(k.owner)).map(pickAsset),
+      ...devy,
     ];
-  }, [data, me, partner]);
+  }, [data, me, partner, devy]);
 
   const result = useMemo(
     () => (give.length || get.length ? applyMoves(data, give, get, me, partner || null) : null),
@@ -181,7 +218,7 @@ export default function RosterLab() {
 
   return (
     <>
-      <PageHead title="Roster" accent="Lab" sub="Try hypothetical moves, including free agents and unrostered rookies, and see your rank, shares and three-year trajectory shift. Nothing is saved or sent anywhere.">
+      <PageHead title="Roster" accent="Lab" sub="Try hypothetical moves, including free agents, unrostered rookies and next year's college class, and see your rank, shares and three-year trajectory shift. Nothing is saved or sent anywhere.">
         <TeamSelect value={me} onChange={(v) => { setMe(v); reset(); setPartner(0); }} />
         <select className="select" value={partner} onChange={(e) => { setPartner(Number(e.target.value)); setGet([]); setTab("me"); }}>
           <option value={0}>No partner (one-sided sandbox)</option>
@@ -206,6 +243,7 @@ export default function RosterLab() {
           onAdd={(a) => setGet((l) => [...l, a])}
           onRemove={(id) => setGet((l) => l.filter((a) => a.id !== id))}
           teamName={teamName}
+          filters={[["all", "All"], ["players", "Players"], ["picks", "Picks"], ["devy", `'${String(devySeason).slice(2)} class (${devy.length})`]]}
         />
       </div>
 
@@ -262,6 +300,7 @@ export default function RosterLab() {
                 <Img src={p.img} className="avatar" />
                 <span style={{ flex: 1, minWidth: 0 }} className="pname">{p.name}</span>
                 <Pos pos={p.pos} />
+                {p.devy && <span className="chip">{p.devySeason} devy #{p.devyRank}</span>}
                 {newIds.has(p.id) && <span className="chip accent">New</span>}
                 <b className="small" style={{ width: 56, textAlign: "right" }}>{fmt(p.value)}</b>
               </div>

@@ -1,4 +1,4 @@
-# Front Office
+# Bleacher GM
 
 Dynasty command center for the Weekend Warriors Sleeper league, built with Next.js for Vercel.
 
@@ -32,3 +32,12 @@ npm run dev   # http://localhost:3000
 - League data is cached at Vercel's edge for 10 minutes.
 - Live scores are cached for 30 seconds and refreshed in the browser every minute.
 - Player game logs are cached for 15 minutes.
+
+## Next year's rookie class (devy prospects)
+Roster Lab can add next year's college class, which Sleeper won't have until those players are drafted. The list lives in `public/data/devy_prospects.csv`, using the same columns as the Streamlit app's file:
+
+```
+Season,Consensus Rank,Player,Position,School,Notes
+```
+
+Replace the starter list with your own board whenever you like. A prospect ranked Nth is valued like the Nth-best pick in that class (FantasyCalc pick prices), with a premium for the top three.

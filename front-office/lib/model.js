@@ -295,7 +295,8 @@ export function slotEligible(slot, eligible) {
 // Best possible starting lineup by dynasty value, filling the scarcest slots first.
 export function optimalStarters(roster, rosterPositions) {
   const slots = rosterPositions.filter((s) => !["BN", "IR", "TAXI"].includes(s));
-  const pool = roster.filter((p) => p.value > 0).map((p) => ({ ...p, elig: p.eligible || [p.pos] }));
+  // College prospects can't start this season, so they never count toward the lineup.
+  const pool = roster.filter((p) => p.value > 0 && !p.devy).map((p) => ({ ...p, elig: p.eligible || [p.pos] }));
   const order = [...slots].sort(
     (a, b) => pool.filter((p) => slotEligible(a, p.elig)).length - pool.filter((p) => slotEligible(b, p.elig)).length,
   );
@@ -354,7 +355,10 @@ export function applyMoves(data, give, get, me, partner) {
   const players = { ...data.players };
   const picks = data.picks.map((k) => ({ ...k }));
   const move = (a, to) => {
-    if (a.kind === "player") players[a.id] = { ...players[a.id], owner: to, status: to == null ? "FA" : "Bench" };
+    if (a.kind === "player") {
+      const base = players[a.id] || a.p; // devy prospects aren't in the league data yet
+      players[a.id] = { ...base, owner: to, status: to == null ? "FA" : base.devy ? "Devy" : "Bench" };
+    }
     else {
       const k = picks.find((x) => x.id === a.id);
       if (k) k.owner = to == null ? -1 : to;
@@ -363,4 +367,66 @@ export function applyMoves(data, give, get, me, partner) {
   give.forEach((a) => move(a, partner ?? null));
   get.forEach((a) => move(a, me));
   return { players, picks, teams: computeTeams(data.teams, players, picks) };
+}
+
+// ---------------------------------------------------------------------------
+// Devy prospects (future rookie classes not yet in Sleeper)
+// ---------------------------------------------------------------------------
+
+export function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (c === '"') quoted = false;
+      else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") {
+      row.push(field);
+      field = "";
+    } else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(field);
+      field = "";
+      if (row.some((x) => x !== "")) rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  row.push(field);
+  if (row.some((x) => x !== "")) rows.push(row);
+  const [head, ...body] = rows;
+  if (!head) return [];
+  const keys = head.map((h) => h.trim());
+  return body.map((r) => Object.fromEntries(keys.map((k, i) => [k, (r[i] ?? "").trim()])));
+}
+
+// A prospect ranked Nth is worth what the Nth-best pick of that class is worth
+// (FantasyCalc pick prices), plus a premium for the blue-chip few — same idea
+// as devy_value() in the Streamlit app. A lower-ranked prospect is never worth more.
+const DEVY_PREMIUM = { 1: 1.35, 2: 1.12, 3: 1.05 };
+export function devyAssets(rows, picks, season) {
+  const list = rows
+    .filter((r) => Number(r.Season) === season && r.Player)
+    .sort((a, b) => (Number(a["Consensus Rank"]) || 999) - (Number(b["Consensus Rank"]) || 999));
+  const pickValues = picks.filter((k) => k.season === season).map((k) => k.value).sort((a, b) => b - a);
+  let prev = Infinity;
+  return list.map((r, i) => {
+    const rank = i + 1;
+    const value = Math.min(prev, Math.round((pickValues[i] ?? 75) * (DEVY_PREMIUM[rank] || 1)));
+    prev = value;
+    const pos = (r.Position || "").toUpperCase();
+    const id = `devy-${season}-${r.Player.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    const p = {
+      id, name: r.Player, pos, team: r.School || "NCAA", age: null, value, posRank: null, ovrRank: null,
+      trend: 0, owner: null, status: "Devy", img: FALLBACK_IMG, eligible: [pos], devy: true, devyRank: rank,
+      devySeason: season, note: r.Notes || "",
+    };
+    return { id, kind: "player", label: r.Player, value, owner: null, sub: `${season} class #${rank} · ${p.team}`, p };
+  });
 }

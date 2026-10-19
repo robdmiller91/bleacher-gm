@@ -179,7 +179,7 @@ export default function AppShell({ children }) {
     <AppContext.Provider value={ctx}>
       <div className="shell">
         <aside className="rail">
-          <div className="rail-logo">FO</div>
+          <div className="rail-logo">BGM</div>
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} className={`rail-link${pathname === n.href ? " active" : ""}`}>
               <Icon name={n.icon} size={22} />

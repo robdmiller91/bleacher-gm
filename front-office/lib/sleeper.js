@@ -7,7 +7,7 @@ export const LEAGUE_ID = process.env.SLEEPER_LEAGUE_ID || "1382737164013436928";
 export const MY_TEAM_NAME = process.env.MY_TEAM_NAME || "what up dough";
 
 export async function getJSON(url) {
-  const res = await fetch(url, { cache: "no-store", headers: { "User-Agent": "front-office" } });
+  const res = await fetch(url, { cache: "no-store", headers: { "User-Agent": "bleacher-gm" } });
   if (!res.ok) throw new Error(`${res.status} from ${url}`);
   return res.json();
 }
