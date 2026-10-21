@@ -84,12 +84,80 @@ function WeeklyChart({ weeks, color }) {
   );
 }
 
+function timeAgo(ms) {
+  if (!ms) return "";
+  const mins = Math.round((Date.now() - ms) / 60000);
+  if (mins < 60) return `${Math.max(mins, 1)}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 14) return `${days}d ago`;
+  return new Date(ms).toLocaleDateString();
+}
+
+function NewsItem({ n, featured }) {
+  return (
+    <article className={`news${featured ? " featured" : ""}`}>
+      <div className="news-meta">
+        <span className={`news-src ${n.sourceKey}`}>{n.source}</span>
+        <span className="muted small">{timeAgo(n.published)}</span>
+      </div>
+      <h4>{n.title}</h4>
+      {n.description && <p>{n.description}</p>}
+      {n.analysis && (
+        <p className="news-analysis">
+          <b>Analysis:</b> {n.analysis}
+        </p>
+      )}
+      {n.url && (
+        <a className="news-link" href={n.url} target="_blank" rel="noopener noreferrer">
+          Read on {n.source} ↗
+        </a>
+      )}
+    </article>
+  );
+}
+
+function NewsFeed({ items }) {
+  const [src, setSrc] = useState("all");
+  if (items === null) return <div className="skeleton" style={{ height: 300 }} />;
+  if (!items.length) return <div className="empty">No recent news for this player.</div>;
+  const sources = [...new Set(items.map((n) => n.source))];
+  const shown = src === "all" ? items : items.filter((n) => n.source === src);
+  return (
+    <div className="grid" style={{ gap: "0.8rem" }}>
+      <div className="card-title" style={{ marginBottom: 0 }}>
+        <h3>Player News</h3>
+        <div className="seg">
+          {["all", ...sources].map((s) => (
+            <button key={s} className={src === s ? "on" : ""} onClick={() => setSrc(s)}>{s === "all" ? "All" : s}</button>
+          ))}
+        </div>
+      </div>
+      {shown.map((n, i) => <NewsItem key={n.id} n={n} featured={i === 0} />)}
+      <p className="muted small" style={{ margin: 0 }}>The same news feed the Sleeper app shows, from FantasyPros, RotoWire and RotoBaller.</p>
+    </div>
+  );
+}
+
 export default function PlayerModal({ id, onClose }) {
   const { data, live, openPlayer } = useApp();
   const p = data.players[id];
   const [tab, setTab] = useState("overview");
   const [season, setSeason] = useState(data.league.season);
   const [logs, setLogs] = useState(null);
+  const [news, setNews] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/news/${encodeURIComponent(id)}`)
+      .then((r) => r.json())
+      .then((d) => alive && setNews(d.items || []))
+      .catch(() => alive && setNews([]));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
 
   useEffect(() => {
     let alive = true;
@@ -221,14 +289,27 @@ export default function PlayerModal({ id, onClose }) {
           </div>
 
           <div className="tabs">
-            {[["overview", "Overview"], ["logs", "Game Logs"], ["league", "League Context"]].map(([k, l]) => (
+            {[["overview", "Overview"], ["news", `News${news?.length ? ` (${news.length})` : ""}`], ["logs", "Game Logs"], ["league", "League Context"]].map(([k, l]) => (
               <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>
             ))}
           </div>
 
           <div className="modal-body">
+            {tab === "news" && <NewsFeed items={news} />}
+
             {tab === "overview" && (
               <div className="grid" style={{ gap: "1.2rem" }}>
+                {news === null ? (
+                  <div className="skeleton" style={{ height: 140 }} />
+                ) : news.length > 0 ? (
+                  <div>
+                    <div className="card-title" style={{ marginBottom: "0.6rem" }}>
+                      <h3>Latest News</h3>
+                      {news.length > 1 && <button className="link" onClick={() => setTab("news")}>All {news.length} updates →</button>}
+                    </div>
+                    <NewsItem n={news[0]} featured />
+                  </div>
+                ) : null}
                 <div>
                   <div className="card-title" style={{ marginBottom: "0.6rem" }}>
                     <h3>Player Profile</h3>

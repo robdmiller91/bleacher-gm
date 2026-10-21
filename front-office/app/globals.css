@@ -551,3 +551,25 @@ table.logs .grp th { color: var(--text); font-weight: 700; border-bottom: none; 
   .dash-grid[style] { grid-template-columns: 1fr !important; }
   .rail-link { font-size: 0.56rem; }
 }
+
+/* ---------- Player news ---------- */
+.news { border: 1px solid var(--border); border-radius: 16px; padding: 0.9rem 1.1rem; background: var(--surface); }
+.news.featured {
+  border-color: transparent;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--surface-2)), var(--surface-2));
+}
+.news-meta { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.35rem; }
+.news-src {
+  font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem; border-radius: 999px; background: var(--surface-3);
+}
+.news-src.fantasy_pros { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+.news-src.rotowire { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.news-src.rotoballer { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.news h4 { font-size: 1rem; margin: 0 0 0.35rem; line-height: 1.3; }
+.news.featured h4 { font-size: 1.2rem; }
+.news p { margin: 0 0 0.5rem; line-height: 1.55; font-size: 0.86rem; }
+.news-analysis { color: var(--muted); }
+.news-analysis b { color: var(--text); }
+.news-link { color: var(--accent); font-weight: 600; font-size: 0.8rem; }
+.news-link:hover { text-decoration: underline; }
