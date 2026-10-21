@@ -103,12 +103,6 @@ function NewsItem({ n, featured }) {
         <span className="muted small">{timeAgo(n.published)}</span>
       </div>
       <h4>{n.title}</h4>
-      {n.description && <p>{n.description}</p>}
-      {n.analysis && (
-        <p className="news-analysis">
-          <b>Analysis:</b> {n.analysis}
-        </p>
-      )}
       {n.url && (
         <a className="news-link" href={n.url} target="_blank" rel="noopener noreferrer">
           Read on {n.source} ↗
@@ -135,13 +129,13 @@ function NewsFeed({ items }) {
         </div>
       </div>
       {shown.map((n, i) => <NewsItem key={n.id} n={n} featured={i === 0} />)}
-      <p className="muted small" style={{ margin: 0 }}>The same news feed the Sleeper app shows, from FantasyPros, RotoWire and RotoBaller.</p>
+      <p className="muted small" style={{ margin: 0 }}>Headlines from FantasyPros, RotoWire and RotoBaller, as listed in the Sleeper app. Read the full story on the publisher's site.</p>
     </div>
   );
 }
 
 export default function PlayerModal({ id, onClose }) {
-  const { data, live, openPlayer } = useApp();
+  const { data, live, openPlayer, leagueQuery } = useApp();
   const p = data.players[id];
   const [tab, setTab] = useState("overview");
   const [season, setSeason] = useState(data.league.season);
@@ -162,14 +156,14 @@ export default function PlayerModal({ id, onClose }) {
   useEffect(() => {
     let alive = true;
     setLogs(null);
-    fetch(`/api/player/${encodeURIComponent(id)}?season=${season}`)
+    fetch(`/api/player/${encodeURIComponent(id)}?${leagueQuery}&season=${season}`)
       .then((r) => r.json())
       .then((d) => alive && setLogs(d))
       .catch(() => alive && setLogs({ error: true }));
     return () => {
       alive = false;
     };
-  }, [id, season]);
+  }, [id, season, leagueQuery]);
 
   const ownerTeam = data.teams.find((t) => t.rosterId === p?.owner);
   const color = POS_VAR[p?.pos] || "var(--k)";

@@ -1,8 +1,11 @@
 # Bleacher GM
 
-Dynasty command center for the Weekend Warriors Sleeper league, built with Next.js for Vercel.
+Dynasty command center for any Sleeper league, built with Next.js for Vercel.
 
 **Live data:** Sleeper's public API (league, rosters, matchups, live scores, projections, game logs, injuries) and FantasyCalc dynasty values. No API keys are needed.
+
+## Getting in
+Enter a Sleeper username and pick one of that user's leagues. Sleeper's API is public and read-only, so there's no password and nothing is stored on the server: the chosen league is remembered in the browser (`localStorage`). "Your team" is the roster that user owns or co-owns. Click the league in the top bar to switch. A link with `?league=<league id>` opens that league directly.
 
 ## Pages
 - **Dashboard** (`/`): standings, average points, playoff odds, dynasty rank, live matchup with win probability and lineups, power radar, weekly points vs. league median, position breakdown, injuries, roster.
@@ -12,15 +15,14 @@ Dynasty command center for the Weekend Warriors Sleeper league, built with Next.
 - **Team Blueprint** (`/blueprint`): archetype, positional grades, value and starter share, multi-year outlook, draft capital, cornerstones (star a player) and trade strategy.
 - **League** (`/league`): power rankings with expandable rosters and draft picks.
 - **League History** (`/history`): every past draft board and every trade, with a Drafts/Trades toggle. Trades show what each side's haul is worth today.
-- **Player view**: click any player anywhere, or search with ⌘K. Shows a profile, weekly points chart, heat-mapped game logs and league context.
+- **Player view**: click any player anywhere, or search with ⌘K. Shows a profile, weekly points chart, heat-mapped game logs, news headlines and league context.
 - **Light/dark**: toggle in the top bar. Your choice is remembered.
 
 ## Deploy to Vercel
 1. Push this folder to a new GitHub repo.
 2. At vercel.com choose **Add New → Project**, import the repo, and click **Deploy**. Vercel detects Next.js automatically.
-3. Optional environment variables (Project → Settings → Environment Variables):
-   - `SLEEPER_LEAGUE_ID`: defaults to `1382737164013436928`
-   - `MY_TEAM_NAME`: defaults to `what up dough`
+
+No environment variables are needed.
 
 ## Run locally (needs Node 18+)
 ```bash
@@ -32,6 +34,22 @@ npm run dev   # http://localhost:3000
 - League data is cached at Vercel's edge for 10 minutes.
 - Live scores are cached for 30 seconds and refreshed in the browser every minute.
 - Player game logs are cached for 15 minutes.
+- FantasyCalc values are cached for 3 hours (their rule for free use).
+- Sleeper's full player list is kept in memory for 24 hours (Sleeper asks for at most one fetch a day).
+
+## Data sources and their terms
+Checked 21 Oct 2026. Re-check before charging money or passing the usage limits below.
+
+| Source | What we use | Terms that apply |
+|---|---|---|
+| Sleeper API (docs.sleeper.com) | Leagues, rosters, users, matchups, drafts, transactions, players | Free for **non-commercial** use; commercial use needs a licence from Sleeper. Stay under 1,000 calls a minute; fetch `/players/nfl` at most daily. |
+| Sleeper, undocumented endpoints | Season and weekly stats, projections (`api.sleeper.com`), player news | Not part of the documented API, so not covered by it. Sleeper's general terms limit use to personal, non-commercial use. Could change or be blocked at any time. |
+| News publishers (FantasyPros, RotoWire, RotoBaller) | Headlines, as listed in Sleeper's news feed | Their write-ups are copyrighted. We show only the headline, source and a link to the full story. |
+| FantasyCalc (`/values/current`) | Dynasty player and pick values | Free for sites under **1,000 monthly active users** with visible "FantasyCalc" attribution near the data, cached for at least 3 hours. Commercial use, or 1,000+ users, needs written permission (fantasycalcff@gmail.com). |
+| Sleeper CDN images | Headshots, avatars, NFL team logos | Sleeper's content. Team logos are NFL trademarks. Fine for a free fan site; replace or license before going commercial. |
+| `public/data/devy_prospects.csv` | 2027 devy board | Our own blend of RotoBaller and Dynasty Nerds mock drafts, with both credited. Replace with our own board before going commercial. |
+
+ESPN headshots and logos are not used: Disney's terms forbid reusing ESPN images.
 
 ## Next year's rookie class (devy prospects)
 Roster Lab can add next year's college class, which Sleeper won't have until those players are drafted. The list lives in `public/data/devy_prospects.csv`, using the same columns as the Streamlit app's file:

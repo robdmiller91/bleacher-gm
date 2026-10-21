@@ -7,6 +7,7 @@ const SOURCES = { fantasy_pros: "FantasyPros", rotowire: "RotoWire", rotoballer:
 // Player news from Sleeper's (undocumented) news feed — the same items the
 // Sleeper app shows, sourced from FantasyPros, RotoWire and RotoBaller.
 // It isn't part of Sleeper's official API, so failures just return no news.
+// Only the headline, source and link are passed on: the write-ups belong to those publishers.
 export async function GET(req, { params }) {
   const id = encodeURIComponent(params.id);
   const raw = await safeJSON(`https://api.sleeper.app/players/nfl/${id}/news?limit=10`, []);
@@ -19,12 +20,10 @@ export async function GET(req, { params }) {
         sourceKey: n.source || "",
         published: Number(n.published) || 0,
         title: m.title || "",
-        description: m.description || "",
-        analysis: m.analysis || "",
         url: m.url || null,
       };
     })
-    .filter((n) => n.title || n.description)
+    .filter((n) => n.title)
     .sort((a, b) => b.published - a.published);
 
   return Response.json(

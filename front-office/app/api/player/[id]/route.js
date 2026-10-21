@@ -1,4 +1,4 @@
-import { LEAGUE_ID, SLEEPER, SLEEPER_WEB, getJSON, safeJSON } from "@/lib/sleeper";
+import { SLEEPER, SLEEPER_WEB, errorResponse, getJSON, leagueFrom, safeJSON } from "@/lib/sleeper";
 import { scoreStats } from "@/lib/model";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ const trim = (s) => (s ? Object.fromEntries(KEEP.filter((k) => s[k] != null).map
 export async function GET(req, { params }) {
   try {
     const id = encodeURIComponent(params.id);
-    const league = await getJSON(`${SLEEPER}/league/${LEAGUE_ID}`);
+    const league = await getJSON(`${SLEEPER}/league/${leagueFrom(req)}`);
     const scoring = league.scoring_settings || {};
     const url = new URL(req.url);
     const season = Number(url.searchParams.get("season")) || Number(league.season);
@@ -65,6 +65,6 @@ export async function GET(req, { params }) {
       { headers: { "Cache-Control": "public, s-maxage=900, stale-while-revalidate=3600" } },
     );
   } catch (e) {
-    return Response.json({ error: String(e?.message || e) }, { status: 502 });
+    return errorResponse(e);
   }
 }

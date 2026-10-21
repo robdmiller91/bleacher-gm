@@ -573,3 +573,25 @@ table.logs .grp th { color: var(--text); font-weight: 700; border-bottom: none; 
 .news-analysis b { color: var(--text); }
 .news-link { color: var(--accent); font-weight: 600; font-size: 0.8rem; }
 .news-link:hover { text-decoration: underline; }
+
+/* ---- league switcher, Sleeper connect screen and data credits ---- */
+button.league-pill { font: inherit; color: inherit; text-align: left; cursor: pointer; }
+button.league-pill:hover:not(:disabled) { border-color: var(--accent); }
+button.league-pill:disabled { cursor: default; }
+.connect { max-width: 720px; margin: 0 auto; display: grid; gap: 1rem; }
+.connect-form { display: grid; gap: 0.5rem; }
+.connect-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.connect-row .input { flex: 1; min-width: 200px; }
+.connect-error { color: #e5484d; margin: 0; }
+.connect-leagues { display: grid; gap: 0.5rem; }
+.connect-league {
+  display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; width: 100%;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+}
+.connect-league:hover { border-color: var(--accent); }
+.connect-league img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+.connect-league-text { display: grid; gap: 0.1rem; min-width: 0; }
+.connect-league-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.credits { padding: 0 1.6rem 1.6rem; max-width: 1600px; width: 100%; margin: 0 auto; line-height: 1.5; }
+.credits a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }

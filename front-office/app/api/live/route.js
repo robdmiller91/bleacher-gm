@@ -1,11 +1,11 @@
-import { LEAGUE_ID, SLEEPER, getJSON, safeJSON, getWeekProjections, currentWeekFor } from "@/lib/sleeper";
+import { SLEEPER, errorResponse, getJSON, leagueFrom, safeJSON, getWeekProjections, currentWeekFor } from "@/lib/sleeper";
 
 export const dynamic = "force-dynamic";
 
 // Live scoring for the current week — short cache so scores update during games.
-export async function GET() {
+export async function GET(req) {
   try {
-    const base = `${SLEEPER}/league/${LEAGUE_ID}`;
+    const base = `${SLEEPER}/league/${leagueFrom(req)}`;
     const [league, state, rosters] = await Promise.all([
       getJSON(base),
       safeJSON(`${SLEEPER}/state/nfl`, {}),
@@ -43,6 +43,6 @@ export async function GET() {
       { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" } },
     );
   } catch (e) {
-    return Response.json({ error: String(e?.message || e) }, { status: 502 });
+    return errorResponse(e);
   }
 }

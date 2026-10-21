@@ -1,13 +1,13 @@
-import { LEAGUE_ID, SLEEPER, getAllPlayers, playerImage, safeJSON, teamName } from "@/lib/sleeper";
+import { SLEEPER, errorResponse, getAllPlayers, leagueFrom, playerImage, safeJSON, teamName } from "@/lib/sleeper";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // Sleeper stores each season as its own league linked by previous_league_id.
-async function leagueChain() {
+async function leagueChain(leagueId) {
   const out = [];
   const seen = new Set();
-  let id = LEAGUE_ID;
+  let id = leagueId;
   while (id && id !== "0" && !seen.has(id)) {
     seen.add(id);
     const league = await safeJSON(`${SLEEPER}/league/${id}`, null);
@@ -61,7 +61,7 @@ async function draftsFor(entry, names) {
         name: [m.first_name, m.last_name].filter(Boolean).join(" ") || "Unknown",
         pos: m.position || "",
         team: m.team || "",
-        img: p.player_id ? playerImage(p.player_id, null) : null,
+        img: p.player_id ? playerImage(p.player_id) : null,
         keeper: !!p.is_keeper,
       };
     });
@@ -102,7 +102,7 @@ async function tradesFor(entry, names, players) {
           name: meta.full_name || [meta.first_name, meta.last_name].filter(Boolean).join(" ") || String(pid),
           pos: meta.position || "",
           team: meta.team || "",
-          img: playerImage(pid, meta.espn_id),
+          img: playerImage(pid),
           from: names[Number((tx.drops || {})[pid])]?.name || "",
         });
       }
@@ -123,9 +123,9 @@ async function tradesFor(entry, names, players) {
   return trades;
 }
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const [chain, players] = await Promise.all([leagueChain(), getAllPlayers()]);
+    const [chain, players] = await Promise.all([leagueChain(leagueFrom(req)), getAllPlayers()]);
     const currentNames = rosterNames(chain[0] || { users: [], rosters: [] });
     const perSeason = await Promise.all(
       chain.map(async (entry) => {
@@ -150,6 +150,6 @@ export async function GET() {
       { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } },
     );
   } catch (e) {
-    return Response.json({ error: String(e?.message || e) }, { status: 502 });
+    return errorResponse(e);
   }
 }

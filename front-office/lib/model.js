@@ -2,7 +2,8 @@
 // (re-ranking teams for trade what-ifs). Ported from the Streamlit app.
 
 export const POSITIONS = ["QB", "RB", "WR", "TE"];
-export const FALLBACK_IMG = "https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png";
+// A plain local placeholder for players and teams without an image.
+export const FALLBACK_IMG = "/img/fallback.svg";
 
 export const POS_VAR = {
   QB: "var(--qb)", RB: "var(--rb)", WR: "var(--wr)", TE: "var(--te)",

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon, Img, Pos } from "./ui";
 import PlayerModal from "./PlayerModal";
+import Connect from "./Connect";
 
 const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
@@ -97,13 +98,31 @@ function GlobalSearch() {
   );
 }
 
-function Loading({ error }) {
+// The league this browser has open: { leagueId, userId, username }, remembered in localStorage.
+// A ?league=<id> link opens that league instead, so a league can be shared.
+const SELECTION_KEY = "bgm-selection";
+const isId = (s) => /^\d{1,24}$/.test(String(s || ""));
+function readSelection() {
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(SELECTION_KEY));
+  } catch {}
+  if (saved && !isId(saved.leagueId)) saved = null;
+  const linked = new URLSearchParams(window.location.search).get("league");
+  if (isId(linked) && linked !== saved?.leagueId) return { leagueId: linked, userId: saved?.userId || null, username: saved?.username || "" };
+  return saved;
+}
+
+function Loading({ error, onSwitch }) {
   if (error) {
     return (
       <div className="card empty">
         <h3>Couldn't load your league</h3>
         <p className="small">{error}</p>
-        <button className="btn" onClick={() => window.location.reload()}>Try again</button>
+        <div style={{ display: "flex", gap: "0.6rem", justifyContent: "center" }}>
+          <button className="btn" onClick={() => window.location.reload()}>Try again</button>
+          <button className="btn" onClick={onSwitch}>Pick another league</button>
+        </div>
       </div>
     );
   }
@@ -120,6 +139,7 @@ function Loading({ error }) {
 
 export default function AppShell({ children }) {
   const pathname = usePathname();
+  const [sel, setSel] = useState(undefined); // undefined until read from the browser, null when no league is chosen
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [live, setLive] = useState(null);
@@ -128,6 +148,7 @@ export default function AppShell({ children }) {
 
   useEffect(() => {
     setTheme(document.documentElement.dataset.theme || "dark");
+    setSel(readSelection() || null);
   }, []);
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";
@@ -138,17 +159,44 @@ export default function AppShell({ children }) {
     setTheme(nextTheme);
   };
 
-  useEffect(() => {
-    fetch("/api/league")
-      .then((r) => r.json())
-      .then((d) => (d.error ? setError(d.error) : setData(d)))
-      .catch((e) => setError(String(e)));
+  const pickLeague = useCallback((s) => {
+    try {
+      localStorage.setItem(SELECTION_KEY, JSON.stringify(s));
+    } catch {}
+    if (window.location.search.includes("league=")) window.history.replaceState(null, "", window.location.pathname);
+    setData(null);
+    setLive(null);
+    setError(null);
+    setSel(s);
   }, []);
+  const switchLeague = useCallback(() => {
+    setPlayerId(null);
+    setData(null);
+    setLive(null);
+    setError(null);
+    setSel((s) => (s ? { ...s, leagueId: null } : null));
+  }, []);
+
+  const leagueId = sel?.leagueId || null;
+  const leagueQuery = leagueId ? `league=${leagueId}` : "";
+
+  useEffect(() => {
+    if (!leagueId) return;
+    let alive = true;
+    fetch(`/api/league?${leagueQuery}${sel?.userId ? `&user=${sel.userId}` : ""}`)
+      .then((r) => r.json())
+      .then((d) => alive && (d.error ? setError(d.error) : setData(d)))
+      .catch((e) => alive && setError(String(e)));
+    return () => {
+      alive = false;
+    };
+  }, [leagueId, leagueQuery, sel?.userId]);
 
   // Live scores refresh every minute while the tab is open.
   useEffect(() => {
+    if (!leagueId) return;
     const load = () =>
-      fetch("/api/live")
+      fetch(`/api/live?${leagueQuery}`)
         .then((r) => r.json())
         .then((d) => {
           if (!d.error) setLive(d);
@@ -157,7 +205,7 @@ export default function AppShell({ children }) {
     load();
     const t = setInterval(load, 60000);
     return () => clearInterval(t);
-  }, []);
+  }, [leagueId, leagueQuery]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -172,8 +220,13 @@ export default function AppShell({ children }) {
   }, [playerId]);
 
   const openPlayer = useCallback((id) => setPlayerId(String(id)), []);
-  const ctx = useMemo(() => ({ data, live, openPlayer, theme }), [data, live, openPlayer, theme]);
+  const ctx = useMemo(() => ({ data, live, openPlayer, theme, leagueQuery }), [data, live, openPlayer, theme, leagueQuery]);
   const me = data?.teams.find((t) => t.rosterId === data.me);
+
+  let body;
+  if (sel === undefined) body = <Loading />;
+  else if (!leagueId) body = <Connect initialUsername={sel?.username || ""} onPick={pickLeague} />;
+  else body = data ? children : <Loading error={error} onSwitch={switchLeague} />;
 
   return (
     <AppContext.Provider value={ctx}>
@@ -191,14 +244,14 @@ export default function AppShell({ children }) {
 
         <div className="main">
           <header className="topbar">
-            <div className="league-pill">
+            <button type="button" className="league-pill" onClick={switchLeague} title="Switch league" disabled={!leagueId}>
               <Img src={me?.avatar || data?.league.avatar} />
               <div className="league-pill-text">
-                <div className="league-pill-name">{data?.league.name || "Loading league…"}</div>
-                <div className="league-pill-sub">{me ? `${me.name} · ${me.wins}-${me.losses}` : "Sleeper"}</div>
+                <div className="league-pill-name">{data?.league.name || (leagueId ? "Loading league…" : "No league yet")}</div>
+                <div className="league-pill-sub">{me ? `${me.name} · ${me.wins}-${me.losses}` : leagueId ? "Switch league" : "Connect Sleeper"}</div>
               </div>
-            </div>
-            <GlobalSearch />
+            </button>
+            {data && <GlobalSearch />}
             {live && (
               <span className="chip" title={`Updated ${new Date(live.fetchedAt).toLocaleTimeString()}`}>
                 <span className="live-dot" /> Week {live.week}
@@ -209,7 +262,13 @@ export default function AppShell({ children }) {
             </button>
           </header>
 
-          <main className="content">{data ? children : <Loading error={error} />}</main>
+          <main className="content">{body}</main>
+
+          <footer className="credits small muted">
+            League data from <a href="https://sleeper.com" target="_blank" rel="noopener noreferrer">Sleeper</a>.
+            Dynasty values from <a href="https://fantasycalc.com" target="_blank" rel="noopener noreferrer">FantasyCalc</a>.
+            Bleacher GM is an independent fan project, not affiliated with or endorsed by Sleeper, FantasyCalc or the NFL.
+          </footer>
         </div>
       </div>
       {data && playerId && <PlayerModal key={playerId} id={playerId} onClose={() => setPlayerId(null)} />}

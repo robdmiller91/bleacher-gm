@@ -3,7 +3,7 @@ import AppShell from "@/components/AppShell";
 
 export const metadata = {
   title: "Bleacher GM",
-  description: "Dynasty command center for your Sleeper league",
+  description: "Dynasty command center for any Sleeper league",
 };
 
 // Applied before paint so the saved theme never flashes the wrong colors.

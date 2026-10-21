@@ -40,7 +40,7 @@ export function Img({ src, className, alt = "" }) {
       className={className}
       loading="lazy"
       onError={(e) => {
-        if (!e.currentTarget.src.endsWith("nfl.png")) e.currentTarget.src = FALLBACK_IMG;
+        if (!e.currentTarget.src.endsWith(FALLBACK_IMG)) e.currentTarget.src = FALLBACK_IMG;
       }}
     />
   );

@@ -142,7 +142,7 @@ function TradeCard({ t, managers, valueOf }) {
 }
 
 export default function History() {
-  const { data } = useApp();
+  const { data, leagueQuery } = useApp();
   const [hist, setHist] = useState(null);
   const [view, setView] = useState("drafts");
   const [draftIdx, setDraftIdx] = useState(0);
@@ -150,11 +150,11 @@ export default function History() {
   const [seasonFilter, setSeasonFilter] = useState("all");
 
   useEffect(() => {
-    fetch("/api/history")
+    fetch(`/api/history?${leagueQuery}`)
       .then((r) => r.json())
       .then(setHist)
       .catch((e) => setHist({ error: String(e) }));
-  }, []);
+  }, [leagueQuery]);
 
   const myOwner = data.teams.find((t) => t.rosterId === data.me)?.ownerId;
 

@@ -3,8 +3,20 @@ import { computeTeams, scoreStats, slotMultipliers, teamLogo } from "./model";
 
 export const SLEEPER = "https://api.sleeper.app/v1";
 export const SLEEPER_WEB = "https://api.sleeper.com";
-export const LEAGUE_ID = process.env.SLEEPER_LEAGUE_ID || "1382737164013436928";
-export const MY_TEAM_NAME = process.env.MY_TEAM_NAME || "what up dough";
+
+// Sleeper league and user ids are long numeric strings.
+export const isSleeperId = (s) => /^\d{1,24}$/.test(String(s || ""));
+
+// The league a request is for, from ?league=<id>. Throws an error carrying status 400 when it's missing or malformed.
+export function leagueFrom(req) {
+  const id = new URL(req.url).searchParams.get("league");
+  if (!isSleeperId(id)) throw Object.assign(new Error("Pick a league first."), { status: 400 });
+  return id;
+}
+
+export function errorResponse(e) {
+  return Response.json({ error: String(e?.message || e) }, { status: e?.status || 502 });
+}
 
 export async function getJSON(url) {
   const res = await fetch(url, { cache: "no-store", headers: { "User-Agent": "bleacher-gm" } });
@@ -21,11 +33,12 @@ export async function safeJSON(url, fallback) {
   }
 }
 
-// /players/nfl is ~5MB and changes slowly, so keep it in memory on warm functions.
+// /players/nfl is ~5MB and changes slowly. Sleeper asks that it be fetched at most once a day,
+// so keep it in memory on warm functions for 24 hours (it's too big for Next's fetch cache).
 let playersCache = null;
 let playersAt = 0;
 export async function getAllPlayers() {
-  if (playersCache && Date.now() - playersAt < 6 * 3600 * 1000) return playersCache;
+  if (playersCache && Date.now() - playersAt < 24 * 3600 * 1000) return playersCache;
   playersCache = await getJSON(`${SLEEPER}/players/nfl`);
   playersAt = Date.now();
   return playersCache;
@@ -36,10 +49,57 @@ export function teamName(user, rosterId) {
   return m.team_name || user?.display_name || user?.username || `Roster ${rosterId}`;
 }
 
-export function playerImage(id, espnId) {
-  return espnId
-    ? `https://a.espncdn.com/i/headshots/nfl/players/full/${espnId}.png`
-    : `https://sleepercdn.com/content/nfl/players/${id}.jpg`;
+// Headshots come from Sleeper's CDN only; ESPN's terms don't allow reusing its images.
+export function playerImage(id) {
+  return `https://sleepercdn.com/content/nfl/players/${id}.jpg`;
+}
+
+// FantasyCalc lets small sites use /values/current with attribution, as long as responses are
+// cached and refreshed no more than once every three hours, so this goes through Next's data cache.
+async function fantasyCalcValues(url) {
+  try {
+    const res = await fetch(url, { next: { revalidate: 3 * 3600 }, headers: { "User-Agent": "bleacher-gm" } });
+    return res.ok ? await res.json() : [];
+  } catch {
+    return [];
+  }
+}
+
+// A Sleeper user and their leagues this season (and last season's, during the offseason before rollover).
+export async function getUserLeagues(username) {
+  const user = await safeJSON(`${SLEEPER}/user/${encodeURIComponent(username)}`, null);
+  if (!user || !user.user_id) return null;
+  const state = await safeJSON(`${SLEEPER}/state/nfl`, {});
+  const season = Number(state.league_season || state.season) || new Date().getFullYear();
+  const seasons = state.season_type === "off" ? [season, season - 1] : [season];
+  const lists = await Promise.all(seasons.map((s) => safeJSON(`${SLEEPER}/user/${user.user_id}/leagues/nfl/${s}`, [])));
+  const seen = new Set();
+  const leagues = [];
+  for (const l of lists.flat()) {
+    // a league renewed for the new season shows up twice; the newer one comes first, so skip its predecessor
+    if (!l || seen.has(String(l.league_id))) continue;
+    seen.add(String(l.league_id));
+    if (l.previous_league_id) seen.add(String(l.previous_league_id));
+    leagues.push({
+      id: String(l.league_id),
+      name: l.name,
+      season: Number(l.season),
+      teams: Number(l.total_rosters) || null,
+      dynasty: Number(l.settings?.type) === 2,
+      superflex: (l.roster_positions || []).includes("SUPER_FLEX"),
+      avatar: l.avatar ? `https://sleepercdn.com/avatars/thumbs/${l.avatar}` : null,
+    });
+  }
+  leagues.sort((a, b) => b.dynasty - a.dynasty || b.season - a.season || a.name.localeCompare(b.name));
+  return {
+    user: {
+      id: String(user.user_id),
+      username: user.username || username,
+      name: user.display_name || user.username || username,
+      avatar: user.avatar ? `https://sleepercdn.com/avatars/thumbs/${user.avatar}` : null,
+    },
+    leagues,
+  };
 }
 
 const posQuery = (list) => list.map((p) => `position%5B%5D=${p}`).join("&");
@@ -93,8 +153,8 @@ async function draftedSeasons(drafts, totalTeams) {
   return done;
 }
 
-export async function buildLeague() {
-  const base = `${SLEEPER}/league/${LEAGUE_ID}`;
+export async function buildLeague(leagueId, userId) {
+  const base = `${SLEEPER}/league/${leagueId}`;
   const [league, users, rosters, tradedPicks, drafts, state] = await Promise.all([
     getJSON(base),
     getJSON(`${base}/users`),
@@ -118,7 +178,7 @@ export async function buildLeague() {
   const weeks = Array.from({ length: lastRegWeek }, (_, i) => i + 1);
   const [allPlayers, fcRaw, seasonRaw, matchupsByWeek, drafted] = await Promise.all([
     getAllPlayers(),
-    safeJSON(fcUrl, []),
+    fantasyCalcValues(fcUrl),
     safeJSON(`${SLEEPER_WEB}/stats/nfl/${season}?season_type=regular&${posQuery(["QB", "RB", "WR", "TE"])}`, []),
     Promise.all(weeks.map((w) => safeJSON(`${base}/matchups/${w}`, []))),
     draftedSeasons(drafts, numTeams),
@@ -197,7 +257,7 @@ export async function buildLeague() {
       height: p.height || null,
       weight: p.weight || null,
       eligible: p.fantasy_positions || [pos],
-      img: pos === "DEF" ? teamLogo(id) : playerImage(id, p.espn_id),
+      img: pos === "DEF" ? teamLogo(id) : playerImage(id),
       gp,
       seasonPts: pts != null ? Math.round(pts * 10) / 10 : null,
       ppg: gp && pts != null ? Math.round((pts / gp) * 100) / 100 : null,
@@ -336,15 +396,15 @@ export async function buildLeague() {
   });
   const currentWeek = currentWeekFor(state, season, lastRegWeek);
 
-  const target = MY_TEAM_NAME.toLowerCase();
-  const mine =
-    teams.find((t) => t.name.toLowerCase() === target) ||
-    teams.find((t) => t.name.toLowerCase().includes(target)) ||
-    teams.find((t) => t.manager.toLowerCase() === target);
+  // Your team is the roster you own or co-own in this league.
+  const myRoster = userId
+    ? rosters.find((r) => String(r.owner_id) === userId || (r.co_owners || []).map(String).includes(userId))
+    : null;
+  const mine = myRoster ? teams.find((t) => t.rosterId === Number(myRoster.roster_id)) : null;
 
   return {
     league: {
-      id: LEAGUE_ID,
+      id: leagueId,
       name: league.name,
       season,
       avatar: league.avatar ? `https://sleepercdn.com/avatars/thumbs/${league.avatar}` : null,
