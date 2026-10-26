@@ -1006,3 +1006,27 @@ select.px-pill.hot { background-image: none; padding-right: 1rem; }
   .px-chat-player { grid-template-columns: auto minmax(0, 1fr) auto; }
   .px-chat-player .px-chat-kv, .px-chat-player .px-outcome { display: none; }
 }
+
+/* ---------- Class sheet overview: fits without sideways scrolling ---------- */
+.px-table.compact table.t { font-size: 0.8rem; }
+.px-table.compact table.t thead th { padding: 0.65rem 0.35rem; font-size: 0.6rem; letter-spacing: 0.06em; white-space: normal; line-height: 1.2; }
+.px-table.compact table.t td { padding: 0.4rem 0.35rem; }
+.px-table.compact .px-rk { font-size: 1.1rem; }
+.px-table.compact .rnk { width: 48px; }
+.px-table.compact .pcell { gap: 0.55rem; }
+.px-rk-namebox { display: grid; gap: 0.1rem; min-width: 0; }
+.px-table.compact .px-rk-name { font-size: 0.86rem; white-space: nowrap; }
+.px-table.compact .px-school { font-size: 0.72rem; color: var(--muted); }
+.px-table.compact .px-tier.small { font-size: 0.56rem; padding: 0.16rem 0.4rem; letter-spacing: 0.06em; }
+.px-table.compact td:has(.px-profile), .px-table.compact td:last-child { white-space: normal; }
+.px-profile { display: block; text-align: left; font-size: 0.74rem; line-height: 1.25; min-width: 70px; }
+.px-profile b { font-weight: 600; }
+.px-nowrap { white-space: nowrap; }
+.px-hype-mini { display: inline-block; padding: 0.12rem 0.4rem; border-radius: 6px; font-size: 0.68rem; font-weight: 700; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
+.px-hype-mini.model { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); }
+.px-hype-mini.hype { background: color-mix(in srgb, var(--bad) 13%, transparent); color: var(--bad); }
+.px-table.compact table.t td { white-space: normal; }
+@media (max-width: 1400px) {
+  .px-table.compact .px-rk-name { white-space: normal; }
+  .px-table.compact table.t td { padding: 0.4rem 0.28rem; }
+}

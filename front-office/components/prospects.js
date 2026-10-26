@@ -186,7 +186,18 @@ const COL = {
   outcome: { key: "outcome", label: "NFL Outcome", get: (x) => (isPast(x) ? -(x.outcome.best4 ?? 999) : null), show: (x) => (isPast(x) ? <OutcomeBadge x={x} /> : <span className="muted small">Not drafted yet</span>) },
 };
 // Class sheet: rookie-draft order for one class.
-const SHEET_COLS = [COL.pos, COL.tier, COL.classTier, COL.z, COL.overall, COL.grade, COL.height, COL.weight, COL.forty, COL.draftAge, COL.predraft, COL.hype, COL.archetype, COL.type];
+// Compact columns so the class sheet's overview fits a laptop screen without sideways scrolling.
+const HYPE_SHORT = { model: "▲ Model", hype: "▲ Hype", aligned: "=" };
+const COMPACT = {
+  size: { key: "weight", label: "Size", get: (x) => x.weight, show: (x) => <span className="px-nowrap">{heightLabel(x.height)} · {x.weight ?? "—"}</span> },
+  hype: {
+    key: "hype", label: "Model / Hype", get: (x) => x.hype.gap,
+    show: (x) => <span className={`px-hype-mini ${x.hype.key}`} title={`${x.hype.label}: production ${x.profile.toFixed(2)} vs draft capital ${x.capital.toFixed(1)}`}>{HYPE_SHORT[x.hype.key]}</span>,
+  },
+  archetype: { key: "archetype", label: "Archetype", get: (x) => x.archetype, show: (x) => <span className="px-profile">{x.archetype}</span> },
+  type: { key: "build", label: "Type", get: (x) => x.build, show: (x) => <span className="px-profile">{x.build}</span> },
+};
+const SHEET_COLS = [COL.pos, COL.tier, COL.classTier, COL.z, COL.overall, COL.grade, COMPACT.size, COL.forty, COL.draftAge, COL.predraft, COMPACT.hype, COMPACT.archetype, COMPACT.type];
 // Position rankings: every class at one position, by grade.
 const RANK_COLS = [COL.classRk, COL.tier, COL.overall, COL.grade, COL.type, COL.archetype, COL.height, COL.weight, COL.forty, COL.draftAge, COL.predraft, COL.pick, COL.outcome];
 
@@ -286,6 +297,7 @@ export function RankingsView({ list, pos, onOpen, single }) {
   }, [list, q, cls, tier, arch, build, round, sort, columns]);
 
   const clickSort = (c) => setSort((s) => (s.key === c.key ? { key: c.key, asc: !s.asc } : { key: c.key, asc: !!c.asc }));
+  const compact = single && cols === "overview";
   const filtered = q || cls || tier || arch || build || round;
   const clear = () => [setQ, setCls, setTier, setArch, setBuild, setRound].forEach((f) => f(""));
 
@@ -308,13 +320,13 @@ export function RankingsView({ list, pos, onOpen, single }) {
         </div>
         <span className="muted small">{rows.length} players{cols === "production" ? " · college career totals" : ""}{single ? " · class sheet order (Z-score)" : ""}</span>
       </div>
-      <div className="table-wrap px-table">
+      <div className={`table-wrap px-table${compact ? " compact" : ""}`}>
         <table className="t">
           <thead>
             <tr>
               <th className="rnk">{single ? "Pick" : "Rk"}</th>
               <th>Player</th>
-              <th>School</th>
+              {!compact && <th>School</th>}
               {!single && <th className="c">Class</th>}
               {columns.map((c) => (
                 <th key={c.key} className={`c sortable${sort.key === c.key ? " sorted" : ""}`} onClick={() => clickSort(c)}>
@@ -329,11 +341,18 @@ export function RankingsView({ list, pos, onOpen, single }) {
                 <td className="rnk"><b className="px-rk">{single ? x.slot : fixedRank[x.id]}</b></td>
                 <td>
                   <button className="plink pcell" onClick={() => onOpen(x.id)} title={`Open ${x.name}`}>
-                    <span className="px-rk-photo" style={{ "--t": x.tier.color }}><Monogram x={x} size={56} /></span>
-                    <span className="pname px-rk-name">{x.name}</span>
+                    <span className="px-rk-photo" style={{ "--t": x.tier.color }}><Monogram x={x} size={compact ? 44 : 56} /></span>
+                    {compact ? (
+                      <span className="px-rk-namebox">
+                        <span className="pname px-rk-name">{x.name}</span>
+                        <span className="px-school small"><i style={{ background: x.color }} />{x.school}</span>
+                      </span>
+                    ) : (
+                      <span className="pname px-rk-name">{x.name}</span>
+                    )}
                   </button>
                 </td>
-                <td><span className="px-school"><i style={{ background: x.color }} />{x.school}</span></td>
+                {!compact && <td><span className="px-school"><i style={{ background: x.color }} />{x.school}</span></td>}
                 {!single && <td className="c">{x.draftYear}</td>}
                 {columns.map((c) => <td key={c.key} className="c">{c.show(x)}</td>)}
               </tr>
