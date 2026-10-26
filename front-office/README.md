@@ -77,15 +77,12 @@ Season,Consensus Rank,Player,Position,School,Notes
 
 Replace the starter list with your own board whenever you like. A prospect ranked Nth is valued like the Nth-best pick in that class (FantasyCalc pick prices), with a premium for the top three.
 
-## Ask, Compare and Comps
-On the prospect pages:
-- **Compare**: any two prospects from any class, head to head on every grade (no setup).
-- **Comps**: pick any player, such as a past NFL star, to see the closest-profiled prospects in the coming class and how similar past prospects turned out (no setup).
-- **Ask**: free-form questions answered by Claude (`claude-opus-5-5`) through `app/api/ask/route.js`. It looks everything up in the prospect data with read-only tools (search, report card, compare, similar players, rankings, hit rates), so answers use our numbers rather than the model's memory.
+## Ask the model (chat)
+A chat panel docked to the bottom of the prospect pages (the "Ask the model" button; ⅓ / ½ / Full height, Clear, Close). It handles questions, comparisons ("compare A and B" shows a head-to-head card in the chat) and comps ("2027 players like Ja'Marr Chase" shows a comp list), and links any player it names to their report card. Free-form questions are answered by Claude (`claude-opus-5-5`) through `app/api/ask/route.js`. It looks everything up in the prospect data with read-only tools (search, report card, compare, similar players, rankings, hit rates), so answers use our numbers rather than the model's memory.
 
-Ask needs an Anthropic API key:
+Free-form answers need an Anthropic API key:
 1. Create a key at console.anthropic.com and **set a monthly spend limit** there, because a public site lets anyone use it.
 2. Locally, put `ANTHROPIC_API_KEY=sk-ant-...` in a `.env.local` file in this folder (already covered by `.gitignore`), then restart `npm run dev`.
 3. On Vercel: Project → Settings → Environment Variables → add `ANTHROPIC_API_KEY`, then redeploy.
 
-Without a key, Ask still handles shortcuts ("compare A and B", "players like X", "top WRs", a player's name) by opening the matching screen. Each answered question costs roughly a few cents. Refusal fallbacks (`fallbacks: "default"`) are on, so a request the model declines is retried on a fallback model automatically.
+Without a key, the chat still answers comparisons, comps, "top 10 RBs"-style lists and player lookups itself (with the same cards); only open-ended questions need the key. Each answered question costs roughly a few cents. Refusal fallbacks (`fallbacks: "default"`) are on, so a request the model declines is retried on a fallback model automatically.

@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BoardView, GlossaryView, RankingsView, ReportCard } from "@/components/prospects";
-import { AskView, CompareView, CompsView } from "@/components/prospectTools";
+import { ChatDock } from "@/components/prospectTools";
 import { PROSPECT_CLASS, loadProspectData } from "@/lib/prospects";
 
 const POSITIONS = ["QB", "RB", "WR", "TE"];
-const VIEWS = ["board", "rankings", "compare", "comps", "ask", "glossary"];
+const VIEWS = ["board", "rankings", "glossary"];
+const DOCK_KEY = "bgm-chat-size";
 
 // What's on screen lives in the URL (?view=, ?pos=, ?class=, ?p=) so any page can be linked or refreshed.
 function readUrl() {
@@ -16,21 +17,15 @@ function readUrl() {
     pos: POSITIONS.includes(p.get("pos")) ? p.get("pos") : "WR",
     year: Number(p.get("class")) || PROSPECT_CLASS,
     open: p.get("p"),
-    a: p.get("a"),
-    b: p.get("b"),
-    of: p.get("of"),
   };
 }
-function writeUrl({ view, pos, year, open, a, b, of }) {
+function writeUrl({ view, pos, year, open }) {
   const url = new URL(window.location.href);
   const set = (k, v, dflt) => (v && v !== dflt ? url.searchParams.set(k, v) : url.searchParams.delete(k));
   set("view", view, "board");
   set("pos", view === "rankings" || view === "glossary" ? pos : null);
   set("class", view === "board" ? year : null, PROSPECT_CLASS);
   set("p", open);
-  set("a", view === "compare" ? a : null);
-  set("b", view === "compare" ? b : null);
-  set("of", view === "comps" ? of : null);
   window.history.replaceState(null, "", url);
 }
 
@@ -87,9 +82,8 @@ export default function Prospects() {
   const [year, setYear] = useState(PROSPECT_CLASS);
   const [boardPos, setBoardPos] = useState("ALL");
   const [open, setOpen] = useState(null);
-  const [cmp, setCmp] = useState({ a: null, b: null });
-  const [compsOf, setCompsOf] = useState(null);
-  const [askThread, setAskThread] = useState([]);
+  // Chat dock height: closed, third, half or full. Remembered in this browser.
+  const [dock, setDock] = useState("closed");
 
   useEffect(() => {
     loadProspectData().then(setData).catch(() => setError(true));
@@ -98,12 +92,20 @@ export default function Prospects() {
     setPos(s.pos);
     setYear(s.year);
     setOpen(s.open);
-    setCmp({ a: s.a, b: s.b });
-    setCompsOf(s.of);
+    try {
+      const saved = localStorage.getItem(DOCK_KEY);
+      if (["closed", "third", "half", "full"].includes(saved)) setDock(saved);
+    } catch {}
   }, []);
+  const sizeDock = (s) => {
+    setDock(s);
+    try {
+      localStorage.setItem(DOCK_KEY, s);
+    } catch {}
+  };
   useEffect(() => {
-    if (data) writeUrl({ view, pos, year, open, a: cmp.a, b: cmp.b, of: compsOf });
-  }, [data, view, pos, year, open, cmp, compsOf]);
+    if (data) writeUrl({ view, pos, year, open });
+  }, [data, view, pos, year, open]);
 
   const everyone = useMemo(() => (data ? [...data.prospects, ...data.history] : []), [data]);
   const years = useMemo(
@@ -127,8 +129,6 @@ export default function Prospects() {
     if (next.view) setView(next.view);
     if (next.pos) setPos(next.pos);
     if (next.year) setYear(next.year);
-    if (next.a !== undefined || next.b !== undefined) setCmp({ a: next.a ?? null, b: next.b ?? null });
-    if (next.of !== undefined) setCompsOf(next.of);
     setOpen(next.open ?? null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -141,7 +141,7 @@ export default function Prospects() {
   const tab = current ? "report" : view;
 
   return (
-    <div className="px-app">
+    <div className={`px-app dock-${dock}`}>
       <header className="px-nav">
         <button className="px-brand" onClick={() => go({ view: "board", year: PROSPECT_CLASS })}>
           <span className="px-brand-mark">BGM</span>
@@ -175,9 +175,6 @@ export default function Prospects() {
       <nav className="px-subnav">
         <button className={tab === "rankings" ? "on" : ""} onClick={() => go({ view: "rankings" })}>Rankings</button>
         {current && <button className="on">Report card</button>}
-        <button className={tab === "compare" ? "on" : ""} onClick={() => go({ view: "compare" })}>Compare</button>
-        <button className={tab === "comps" ? "on" : ""} onClick={() => go({ view: "comps" })}>Comps</button>
-        <button className={tab === "ask" ? "on" : ""} onClick={() => go({ view: "ask" })}>Ask</button>
         <button className={tab === "glossary" ? "on" : ""} onClick={() => go({ view: "glossary" })}>Glossary</button>
       </nav>
 
@@ -206,12 +203,6 @@ export default function Prospects() {
           </div>
           <RankingsView key={`${year}-${boardPos}`} list={sheet} pos={boardPos} single onOpen={openProspect} />
         </>
-      ) : view === "compare" ? (
-        <CompareView everyone={everyone} tierHits={data.tierHits} a={cmp.a} b={cmp.b} onChange={(a, b) => setCmp({ a, b })} onOpen={openProspect} />
-      ) : view === "comps" ? (
-        <CompsView everyone={everyone} of={compsOf} onChange={setCompsOf} onOpen={openProspect} onCompare={(a, b) => go({ view: "compare", a, b })} />
-      ) : view === "ask" ? (
-        <AskView everyone={everyone} onOpen={openProspect} onGo={go} thread={askThread} setThread={setAskThread} />
       ) : view === "rankings" ? (
         <>
           <div className="px-title">
@@ -234,6 +225,7 @@ export default function Prospects() {
         College stats from ESPN. Past drafts, combine results, NFL fantasy finishes and NFL headshots from nflverse (CC BY 4.0) and Sleeper. {PROSPECT_CLASS} big-board ranks from Tankathon.
         The BGM Prospect Score is our own model.
       </p>
+      <ChatDock everyone={everyone} tierHits={data.tierHits} onOpen={openProspect} size={dock} onSize={sizeDock} />
     </div>
   );
 }

@@ -38,6 +38,7 @@ The data covers the ${PROSPECT_CLASS} class (about 30 top prospects, stats throu
 How to answer:
 - Use the tools for every fact about a player. Never rely on memory for grades, stats or outcomes, and never invent players. If someone isn't in the data, say so.
 - Look players up with search_players first to get their id, then use the other tools.
+- For a comparison, always call compare_players, and for comps call find_similar: the site shows a head-to-head or comp-list card under your answer, so summarise the key differences or names in a few lines instead of repeating every number.
 - Be concise: lead with the answer, then the few numbers that support it. Use short lists for comparisons.
 - When you name a player from the data, write it as a link: [Player Name](#p:ID) using the id from the tools.
 - These are model outputs, not certainties. Say so briefly when a call is close or a sample is small.
@@ -148,6 +149,21 @@ function runTool(name, input, data) {
   }
 }
 
+// Which lookups deserve a card in the chat: comparisons, comp lists and single players.
+function widgetFor(name, input, result, data) {
+  if (!result || result.error) return [];
+  const has = (id) => data.all.some((x) => x.id === id);
+  if (name === "compare_players" && Array.isArray(input?.ids) && input.ids.length >= 2 && input.ids.slice(0, 2).every(has)) {
+    return [{ type: "compare", a: input.ids[0], b: input.ids[1] }];
+  }
+  if (name === "find_similar" && has(input?.id)) {
+    const t = String(input?.target || PROSPECT_CLASS);
+    return [{ type: "comps", of: input.id, target: t === "past" ? "past" : Number(t) || PROSPECT_CLASS }];
+  }
+  if (name === "get_player" && has(input?.id)) return [{ type: "player", id: input.id }];
+  return [];
+}
+
 export async function POST(req) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ error: "not_configured" }, { status: 503 });
@@ -172,6 +188,12 @@ export async function POST(req) {
     const data = await loadData(new URL(req.url).origin);
     const client = new Anthropic();
     const messages = [...history, { role: "user", content: question }];
+    // Cards the chat shows under the answer, collected from the lookups Claude made.
+    const widgets = [];
+    const addWidget = (w) => {
+      const key = JSON.stringify(w);
+      if (widgets.length < 4 && !widgets.some((v) => JSON.stringify(v) === key)) widgets.push(w);
+    };
 
     for (let step = 0; step < MAX_STEPS; step++) {
       const response = await client.beta.messages.create({
@@ -196,7 +218,7 @@ export async function POST(req) {
       const toolUses = response.content.filter((b) => b.type === "tool_use");
       if (response.stop_reason !== "tool_use" || !toolUses.length) {
         const answer = response.content.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
-        return Response.json({ answer: answer || "I couldn't put an answer together. Try rephrasing." });
+        return Response.json({ answer: answer || "I couldn't put an answer together. Try rephrasing.", widgets });
       }
 
       messages.push({ role: "assistant", content: response.content });
@@ -206,6 +228,7 @@ export async function POST(req) {
           let result;
           try {
             result = runTool(t.name, t.input, data);
+            widgetFor(t.name, t.input, result, data).forEach(addWidget);
           } catch (e) {
             return { type: "tool_result", tool_use_id: t.id, content: String(e?.message || e), is_error: true };
           }

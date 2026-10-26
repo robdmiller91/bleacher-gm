@@ -545,7 +545,7 @@ export function HeadToHead({ x, y, tierHits, onClose }) {
     <div className="card px-panel px-h2h">
       <div className="px-panel-head">
         <h3>Head to head</h3>
-        <button className="link" onClick={onClose}>Close ✕</button>
+        {onClose && <button className="link" onClick={onClose}>Close ✕</button>}
       </div>
       <div className="px-h2h-cards">
         {[x, y].map((p, i) => (

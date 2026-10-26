@@ -13,13 +13,13 @@ export const useApp = () => useContext(AppContext);
 const LEAGUE_FREE = ["/", "/prospects"];
 
 const NAV = [
-  { href: "/", label: "Prospects", icon: "cap" },
   { href: "/dashboard", label: "Dashboard", icon: "home" },
   { href: "/rankings", label: "Rankings", icon: "rankings" },
   { href: "/trade", label: "Trade", icon: "trade" },
   { href: "/roster-lab", label: "Roster Lab", icon: "lab" },
   { href: "/blueprint", label: "Blueprint", icon: "blueprint" },
   { href: "/league", label: "League", icon: "league" },
+  { href: "/", label: "Prospects", icon: "cap" },
   { href: "/history", label: "History", icon: "history" },
 ];
 
