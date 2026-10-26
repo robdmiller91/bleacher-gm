@@ -15,6 +15,7 @@ Enter a Sleeper username and pick one of that user's leagues. Sleeper's API is p
 - **Team Blueprint** (`/blueprint`): archetype, positional grades, value and starter share, multi-year outlook, draft capital, cornerstones (star a player) and trade strategy.
 - **League** (`/league`): power rankings with expandable rosters and draft picks.
 - **League History** (`/history`): every past draft board and every trade, with a Drafts/Trades toggle. Trades show what each side's haul is worth today.
+- **Prospects** (`/prospects`): the BGM Prospect Score, our own rookie model. It has a class board, sortable rankings, report cards with grades, a radar chart, historical comps and a model-vs-hype call, plus hit rates by tier and draft round, and a glossary. Every QB/RB/WR/TE drafted since 2018 with college stats on ESPN is graded the same way, so past classes can be browsed alongside what actually happened to those players.
 - **Player view**: click any player anywhere, or search with ⌘K. Shows a profile, weekly points chart, heat-mapped game logs, news headlines and league context.
 - **Light/dark**: toggle in the top bar. Your choice is remembered.
 
@@ -49,7 +50,21 @@ Checked 21 Oct 2026. Re-check before charging money or passing the usage limits 
 | Sleeper CDN images | Headshots, avatars, NFL team logos | Sleeper's content. Team logos are NFL trademarks. Fine for a free fan site; replace or license before going commercial. |
 | `public/data/devy_prospects.csv` | 2027 devy board | Our own blend of RotoBaller and Dynasty Nerds mock drafts, with both credited. Replace with our own board before going commercial. |
 
+| ESPN public stats pages (`site.web.api.espn.com`) | College season stats and team totals behind the prospect files | Undocumented and not licensed for reuse; we keep only the numbers (facts), collected once into CSVs, not live calls. Check Disney's terms before going commercial. |
+| Wikipedia | 2027 prospects' birthdates | CC BY-SA; facts only. |
+| Tankathon 2027 big board | Board rank, used as projected draft capital | Read 26 Oct 2026, rank only. Replace with our own board before going commercial. |
+| nflverse (`nflverse-data` releases) | Past drafts, combine 40 times, birthdates, NFL seasons for hit rates and outcomes | CC BY 4.0: credit nflverse. |
+
 ESPN headshots and logos are not used: Disney's terms forbid reusing ESPN images.
+
+## BGM Prospect Score
+Our own model, not a copy of anyone else's. The formulas and thresholds are in `lib/prospects.js`, and the Glossary tab explains each input.
+- `public/data/prospects_2027.csv`: the coming class (bio, board rank, notes). Add 40 times in the `Forty` column after the combine, and update `Board Rank` as boards move.
+- `public/data/prospect_seasons.csv`: their college seasons with team totals. The 2026 rows are the season to date as of 26 Oct 2026.
+- `public/data/prospect_history.csv` and `prospect_history_seasons.csv`: QBs, RBs, WRs and TEs drafted 2018–2025 (the 588 with college stats on ESPN, whose data starts around 2014), with their college seasons and NFL outcome (best full-PPR positional finish in their first four seasons).
+- `public/data/prospect_hit_rates.csv`: hit rates by position and draft round for 2012–2021 drafts.
+
+Not included: PFF charting stats (missed tackles forced, yards after contact, route data) and conference-strength adjustments, which aren't in free data.
 
 ## Next year's rookie class (devy prospects)
 Roster Lab can add next year's college class, which Sleeper won't have until those players are drafted. The list lives in `public/data/devy_prospects.csv`, using the same columns as the Streamlit app's file:

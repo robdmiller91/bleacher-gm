@@ -53,7 +53,7 @@ function WeeklyChart({ weeks, color }) {
   const H = 180;
   const bw = W / weeks.length;
   return (
-    <svg viewBox={`0 0 ${W} ${H + 24}`} width="100%" role="img" aria-label="Fantasy points by week">
+    <svg viewBox={`0 0 ${W} ${H + 40}`} width="100%" role="img" aria-label="Fantasy points and opponent by week">
       {[0.25, 0.5, 0.75, 1].map((f) => (
         <line key={f} x1="0" x2={W} y1={H - H * f} y2={H - H * f} stroke="var(--border)" strokeDasharray="3 4" />
       ))}
@@ -70,13 +70,20 @@ function WeeklyChart({ weeks, color }) {
                 fill={w.played ? color : "none"} stroke={color} strokeWidth={w.played ? 0 : 1.5}
                 strokeDasharray={w.played ? undefined : "4 3"}
               >
-                <title>{`Week ${w.week}: ${w.played ? `${val.toFixed(1)} pts` : `${val.toFixed(1)} projected`}`}</title>
+                <title>{`Week ${w.week}${w.opp ? ` vs ${w.opp}` : ""}: ${w.played ? `${val.toFixed(1)} pts` : `${val.toFixed(1)} projected`}`}</title>
               </rect>
             ) : null}
-            {w.played && h > 18 ? (
-              <text x={x + width / 2} y={H - h + 13} textAnchor="middle" fontSize="10" fontWeight="700" fill="#fff">{Math.round(val)}</text>
+            {w.played && val ? (
+              h > 18 ? (
+                <text x={x + width / 2} y={H - h + 13} textAnchor="middle" fontSize="10" fontWeight="700" fill="#fff">{Math.round(val)}</text>
+              ) : (
+                <text x={x + width / 2} y={H - h - 4} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text)">{Math.round(val)}</text>
+              )
             ) : null}
-            <text x={x + width / 2} y={H + 16} textAnchor="middle" fontSize="10" fill="var(--muted)">{w.bye ? "BYE" : w.week}</text>
+            <text x={x + width / 2} y={H + 16} textAnchor="middle" fontSize="10" fill="var(--muted)">{w.week}</text>
+            <text x={x + width / 2} y={H + 32} textAnchor="middle" fontSize="10" fontWeight="600" fill={w.played ? "var(--text)" : "var(--muted)"}>
+              {w.bye ? "BYE" : w.opp || "–"}
+            </text>
           </g>
         );
       })}
