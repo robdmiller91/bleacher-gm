@@ -44,7 +44,7 @@ function HypeBadge({ x }) {
 }
 
 // Headshot when we have one (Sleeper, for players now in the NFL), otherwise school-colored initials.
-function Monogram({ x, size = 64 }) {
+export function Monogram({ x, size = 64 }) {
   const [broken, setBroken] = useState(false);
   return (
     <span className="px-mono" style={{ "--s": x.color, width: size, height: size, fontSize: size * 0.38 }} aria-hidden="true">
@@ -122,7 +122,7 @@ function BoardTile({ x, featured, onOpen }) {
           <span className="px-pos-chip" style={{ color: `var(--${x.pos.toLowerCase()})` }}>{x.pos}</span>
         </span>
         {x.img && !broken ? (
-          <img className="px-tile-photo" src={x.img} alt="" loading="lazy" onError={() => setBroken(true)} />
+          <img className={`px-tile-photo${x.photo ? " full" : ""}`} src={x.img} alt="" title={x.imgCredit || undefined} loading="lazy" onError={() => setBroken(true)} />
         ) : (
           <span className="px-tile-mono">{initials(x.name)}</span>
         )}
@@ -372,7 +372,8 @@ function IdCard({ x }) {
       </div>
       <div className="px-idcard-photo">
         <span className="px-idcard-school">{schoolAbbr(x.school)}</span>
-        {x.img && !broken ? <img src={x.img} alt={x.name} onError={() => setBroken(true)} /> : <span className="px-idcard-mono">{initials(x.name)}</span>}
+        {x.img && !broken ? <img className={x.photo ? "full" : ""} src={x.img} alt={x.name} onError={() => setBroken(true)} /> : <span className="px-idcard-mono">{initials(x.name)}</span>}
+        {x.img && !broken && x.imgCredit && <span className="px-credit">{x.imgCredit}</span>}
       </div>
       <div className="px-idcard-name">
         <span>{first}</span>
@@ -511,7 +512,7 @@ function HypePanel({ x, hypeCard }) {
 }
 
 // Side-by-side comparison, opened from a VS button.
-function HeadToHead({ x, y, tierHits, onClose }) {
+export function HeadToHead({ x, y, tierHits, onClose }) {
   const ty = (p) => tierHits[p.pos]?.[p.tier.key];
   const row = (label, a, b, better) => ({ label, a, b, better });
   const num = (p, k) => p[k];
@@ -643,7 +644,7 @@ function CompRow({ y, d, vs, setVs, onOpen, sub }) {
 }
 
 
-export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard, onOpen, onBack }) {
+export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard, onOpen, onBack, backLabel }) {
   const [vs, setVs] = useState(null);
   const everyone = useMemo(() => [...classList, ...history], [classList, history]);
   const other = vs ? everyone.find((y) => y.id === vs) : null;
@@ -671,7 +672,7 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard
 
   return (
     <div className="grid px-report">
-      <button className="link px-back" onClick={onBack}>← {x.draftYear} board</button>
+      <button className="link px-back" onClick={onBack}>← {backLabel || `${x.draftYear} board`}</button>
 
       <div className="px-top">
         <IdCard x={x} />

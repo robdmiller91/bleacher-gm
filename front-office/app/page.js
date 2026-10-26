@@ -2,27 +2,35 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BoardView, GlossaryView, RankingsView, ReportCard } from "@/components/prospects";
+import { AskView, CompareView, CompsView } from "@/components/prospectTools";
 import { PROSPECT_CLASS, loadProspectData } from "@/lib/prospects";
 
 const POSITIONS = ["QB", "RB", "WR", "TE"];
+const VIEWS = ["board", "rankings", "compare", "comps", "ask", "glossary"];
 
 // What's on screen lives in the URL (?view=, ?pos=, ?class=, ?p=) so any page can be linked or refreshed.
 function readUrl() {
   const p = new URLSearchParams(window.location.search);
   return {
-    view: ["board", "rankings", "glossary"].includes(p.get("view")) ? p.get("view") : "board",
+    view: VIEWS.includes(p.get("view")) ? p.get("view") : "board",
     pos: POSITIONS.includes(p.get("pos")) ? p.get("pos") : "WR",
     year: Number(p.get("class")) || PROSPECT_CLASS,
     open: p.get("p"),
+    a: p.get("a"),
+    b: p.get("b"),
+    of: p.get("of"),
   };
 }
-function writeUrl({ view, pos, year, open }) {
+function writeUrl({ view, pos, year, open, a, b, of }) {
   const url = new URL(window.location.href);
   const set = (k, v, dflt) => (v && v !== dflt ? url.searchParams.set(k, v) : url.searchParams.delete(k));
   set("view", view, "board");
-  set("pos", view === "board" ? null : pos);
+  set("pos", view === "rankings" || view === "glossary" ? pos : null);
   set("class", view === "board" ? year : null, PROSPECT_CLASS);
   set("p", open);
+  set("a", view === "compare" ? a : null);
+  set("b", view === "compare" ? b : null);
+  set("of", view === "comps" ? of : null);
   window.history.replaceState(null, "", url);
 }
 
@@ -79,6 +87,9 @@ export default function Prospects() {
   const [year, setYear] = useState(PROSPECT_CLASS);
   const [boardPos, setBoardPos] = useState("ALL");
   const [open, setOpen] = useState(null);
+  const [cmp, setCmp] = useState({ a: null, b: null });
+  const [compsOf, setCompsOf] = useState(null);
+  const [askThread, setAskThread] = useState([]);
 
   useEffect(() => {
     loadProspectData().then(setData).catch(() => setError(true));
@@ -87,10 +98,12 @@ export default function Prospects() {
     setPos(s.pos);
     setYear(s.year);
     setOpen(s.open);
+    setCmp({ a: s.a, b: s.b });
+    setCompsOf(s.of);
   }, []);
   useEffect(() => {
-    if (data) writeUrl({ view, pos, year, open });
-  }, [data, view, pos, year, open]);
+    if (data) writeUrl({ view, pos, year, open, a: cmp.a, b: cmp.b, of: compsOf });
+  }, [data, view, pos, year, open, cmp, compsOf]);
 
   const everyone = useMemo(() => (data ? [...data.prospects, ...data.history] : []), [data]);
   const years = useMemo(
@@ -114,6 +127,8 @@ export default function Prospects() {
     if (next.view) setView(next.view);
     if (next.pos) setPos(next.pos);
     if (next.year) setYear(next.year);
+    if (next.a !== undefined || next.b !== undefined) setCmp({ a: next.a ?? null, b: next.b ?? null });
+    if (next.of !== undefined) setCompsOf(next.of);
     setOpen(next.open ?? null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -160,6 +175,9 @@ export default function Prospects() {
       <nav className="px-subnav">
         <button className={tab === "rankings" ? "on" : ""} onClick={() => go({ view: "rankings" })}>Rankings</button>
         {current && <button className="on">Report card</button>}
+        <button className={tab === "compare" ? "on" : ""} onClick={() => go({ view: "compare" })}>Compare</button>
+        <button className={tab === "comps" ? "on" : ""} onClick={() => go({ view: "comps" })}>Comps</button>
+        <button className={tab === "ask" ? "on" : ""} onClick={() => go({ view: "ask" })}>Ask</button>
         <button className={tab === "glossary" ? "on" : ""} onClick={() => go({ view: "glossary" })}>Glossary</button>
       </nav>
 
@@ -173,7 +191,8 @@ export default function Prospects() {
           tierHits={data.tierHits}
           hypeCard={data.hypeCard}
           onOpen={openProspect}
-          onBack={() => go({ view: "board", year: current.draftYear })}
+          backLabel={view === "board" ? `${current.draftYear} board` : "Back"}
+          onBack={() => (view === "board" ? go({ view: "board", year: current.draftYear }) : go({}))}
         />
       ) : view === "board" ? (
         <>
@@ -187,6 +206,12 @@ export default function Prospects() {
           </div>
           <RankingsView key={`${year}-${boardPos}`} list={sheet} pos={boardPos} single onOpen={openProspect} />
         </>
+      ) : view === "compare" ? (
+        <CompareView everyone={everyone} tierHits={data.tierHits} a={cmp.a} b={cmp.b} onChange={(a, b) => setCmp({ a, b })} onOpen={openProspect} />
+      ) : view === "comps" ? (
+        <CompsView everyone={everyone} of={compsOf} onChange={setCompsOf} onOpen={openProspect} onCompare={(a, b) => go({ view: "compare", a, b })} />
+      ) : view === "ask" ? (
+        <AskView everyone={everyone} onOpen={openProspect} onGo={go} thread={askThread} setThread={setAskThread} />
       ) : view === "rankings" ? (
         <>
           <div className="px-title">

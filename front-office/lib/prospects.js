@@ -410,6 +410,9 @@ function buildProspects(bioRows, seasonsBy, now) {
     x.round = projectedRound(boardRank);
     // Drop a photo you have the rights to into public/img/prospects/<id>.jpg and it shows up.
     x.img = r.Image || `/img/prospects/${id}.jpg`;
+    // Full photos (not transparent cut-outs like Sleeper's), so cards crop them to fill.
+    x.photo = true;
+    x.imgCredit = r["Image Credit"] || "";
     return x;
   });
   return rankWithin(list);
