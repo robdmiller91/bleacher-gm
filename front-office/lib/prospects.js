@@ -19,19 +19,31 @@ export const SCHOOL_COLORS = {
 };
 export const schoolColor = (school) => SCHOOL_COLORS[school] || "#334155";
 
-// Tiers on the 0-100 overall score.
+// Tiers are cut on the position grade, best to worst; each position has its own cut lines.
 export const PROSPECT_TIERS = [
-  { key: "Franchise", min: 85, color: "#a855f7" },
-  { key: "Blue Chip", min: 75, color: "#3b82f6" },
-  { key: "Starter Upside", min: 65, color: "#0ea5e9" },
-  { key: "Flex Upside", min: 55, color: "#22c55e" },
-  { key: "Depth Stash", min: 45, color: "#f59e0b" },
-  { key: "Dart Throw", min: 0, color: "#64748b" },
+  { key: "Franchise", color: "#9333ea" },
+  { key: "Star", color: "#1e1b8f" },
+  { key: "Blue Chip", color: "#2563eb" },
+  { key: "Starter Upside", color: "#3b82f6" },
+  { key: "Flex Upside", color: "#166534" },
+  { key: "Depth Stash", color: "#16a34a" },
+  { key: "Long Shot", color: "#ca8a04" },
+  { key: "Dart Throw", color: "#ea580c" },
 ];
-export const prospectTier = (overall) => PROSPECT_TIERS.find((t) => overall >= t.min) || PROSPECT_TIERS[PROSPECT_TIERS.length - 1];
+export const TIER_CUTS = {
+  QB: [12.5, 11.5, 10.5, 9.75, 9.0, 8.25, 7.5],
+  RB: [12.8, 12.0, 11.2, 10.4, 9.6, 8.8, 8.0],
+  WR: [12.45, 11.5, 11.0, 10.25, 9.5, 8.75, 8.0],
+  TE: [13.5, 12.5, 11.75, 11.0, 10.25, 9.5, 8.75],
+};
+export const prospectTier = (pos, grade) => {
+  const i = TIER_CUTS[pos].findIndex((cut) => grade >= cut);
+  return PROSPECT_TIERS[i === -1 ? PROSPECT_TIERS.length - 1 : i];
+};
 
-const LETTERS = [[9.5, "A+"], [8.5, "A"], [7.5, "A-"], [6.5, "B+"], [5.5, "B"], [4.5, "C+"], [3.5, "C"], [2.5, "C-"], [1.5, "D"], [-1, "F"]];
-export const letter = (g) => (g == null ? "—" : LETTERS.find(([min]) => g >= min)[1]);
+// Letters for 0-10 input grades, on the rounded grade.
+const LETTERS = { 10: "A+", 9: "A", 8: "B+", 7: "B", 6: "B-", 5: "C+", 4: "C", 3: "C-", 2: "D+", 1: "D", 0: "F" };
+export const letter = (g) => (g == null ? "—" : g < 0.995 ? "F" : LETTERS[Math.round(g)]);
 export const gradeTone = (g) => (g == null ? "var(--muted)" : g >= 7 ? "var(--good)" : g >= 4 ? "var(--pk)" : "var(--bad)");
 
 const num = (v) => (v === "" || v == null ? null : Number(v));
@@ -57,6 +69,13 @@ const dec = (d) => (v) => (v == null ? "—" : v.toFixed(d));
 const inches = (v) => (v == null ? "—" : `${Math.floor(v / 12)}'${v % 12}"`);
 const lbs = (v) => (v == null ? "—" : `${v} lb`);
 
+// Crowded room: when other future draft picks at the same position group shared the
+// offense, a player's dominator is scaled up as if he'd had their share to compete for.
+// ROOM_WEIGHT < 1 because not all of a teammate's share would have come his way.
+export let ROOM_WEIGHT = 0.75;
+export const setRoomWeight = (w) => (ROOM_WEIGHT = w);
+const roomAdjust = (share, room) => (share == null ? null : Math.min(0.6, share / Math.max(0.35, 1 - ROOM_WEIGHT * (room || 0))));
+
 // Per-season shares and rates. Team totals come from the same season and school.
 function seasonMetrics(s) {
   const scrimYds = s.rushYds + s.recYds;
@@ -67,11 +86,15 @@ function seasonMetrics(s) {
   const recTdShare = ratio(s.recTd, s.teamRecTd);
   const scrimYdShare = ratio(scrimYds, teamScrimYds);
   const scrimTdShare = ratio(scrimTd, teamScrimTd);
+  const recRaw = recYdShare == null ? null : avg([recYdShare, recTdShare ?? recYdShare]);
+  const rbRaw = scrimYdShare == null ? null : avg([scrimYdShare, scrimTdShare ?? scrimYdShare]);
   return {
     ...s,
     scrimYds,
-    recDominator: recYdShare == null ? null : avg([recYdShare, recTdShare ?? recYdShare]),
-    rbDominator: scrimYdShare == null ? null : avg([scrimYdShare, scrimTdShare ?? scrimYdShare]),
+    recDominatorRaw: recRaw,
+    rbDominatorRaw: rbRaw,
+    recDominator: roomAdjust(recRaw, s.room),
+    rbDominator: roomAdjust(rbRaw, s.room),
     recShare: recYdShare,
     recPg: ratio(s.recYds, s.games),
     scrimPg: ratio(scrimYds, s.games),
@@ -94,13 +117,13 @@ export const dominatorOf = (pos, s) => s[DOMINATOR_KEY[pos]];
 // [lo, hi] map onto 0-10; `weight` is its share of the position grade.
 export const METRICS = {
   QB: [
-    { key: "aya", label: "Adj. Yds/Att", get: (x) => maxOf(x.seasons.map((s) => s.aya)), range: [6.5, 10.5], weight: 0.22, fmt: dec(2), note: "Best season's (yards + 20×TD − 45×INT) ÷ attempts, 150+ attempts." },
-    { key: "cmp", label: "Completion %", get: (x) => maxOf(x.seasons.map((s) => s.cmpPct)), range: [0.58, 0.72], weight: 0.12, fmt: pct, note: "Best season, 150+ attempts." },
-    { key: "passPg", label: "Pass Yds/G", get: (x) => maxOf(x.seasons.map((s) => (s.passAtt >= 150 ? s.passPg : null))), range: [180, 320], weight: 0.14, fmt: dec(1), note: "Best season's passing yards per team game." },
-    { key: "breakout", label: "Breakout Age", get: (x) => x.breakoutAge, range: [22.5, 19], weight: 0.14, fmt: dec(1), note: "Age at the first season with 55%+ of the team's passing yards. No breakout scores zero." },
-    { key: "rushDom", label: "Rush Dominator", get: (x) => maxOf(x.seasons.map((s) => (s.passAtt >= 150 ? s.rushShare : null))), range: [0, 0.25], weight: 0.12, fmt: pct, note: "Share of team rushing yards in a starting season. Sacks count against college rushing." },
-    { key: "attempts", label: "Experience", get: (x) => x.seasons.reduce((s, r) => s + r.passAtt, 0), range: [300, 1100], weight: 0.1, fmt: dec(0), note: "Career pass attempts." },
-    { key: "draftAge", label: "Draft Age", get: (x) => x.draftAge, range: [24, 21], weight: 0.16, fmt: dec(1), note: "Age on draft day. Younger is better." },
+    { key: "aya", label: "Adj. Yds/Att", get: (x) => maxOf(x.seasons.map((s) => s.aya)), range: [6.5, 10.5], weight: 0.183, fmt: dec(2), note: "Best season's (yards + 20×TD − 45×INT) ÷ attempts, 150+ attempts." },
+    { key: "cmp", label: "Completion %", get: (x) => maxOf(x.seasons.map((s) => s.cmpPct)), range: [0.58, 0.72], weight: 0.284, fmt: pct, note: "Best season, 150+ attempts." },
+    { key: "passPg", label: "Pass Yds/G", get: (x) => maxOf(x.seasons.map((s) => (s.passAtt >= 150 ? s.passPg : null))), range: [180, 320], weight: 0.083, fmt: dec(1), note: "Best season's passing yards per team game." },
+    { key: "breakout", label: "Breakout Age", get: (x) => x.breakoutAge, range: [22.5, 19], weight: 0.083, fmt: dec(1), note: "Age at the first season with 55%+ of the team's passing yards. No breakout scores zero." },
+    { key: "rushDom", label: "Rush Dominator", get: (x) => maxOf(x.seasons.map((s) => (s.passAtt >= 150 ? s.rushShare : null))), range: [0, 0.25], weight: 0.213, fmt: pct, note: "Share of team rushing yards in a starting season. Sacks count against college rushing." },
+    { key: "attempts", label: "Experience", get: (x) => x.seasons.reduce((s, r) => s + r.passAtt, 0), range: [300, 1100], weight: 0.059, fmt: dec(0), note: "Career pass attempts." },
+    { key: "draftAge", label: "Draft Age", get: (x) => x.draftAge, range: [24, 21], weight: 0.095, fmt: dec(1), note: "Age on draft day. Younger is better." },
   ],
   RB: [
     { key: "dominator", label: "Dominator", get: (x) => maxOf(x.seasons.map((s) => s.rbDominator)), range: [0.1, 0.4], weight: 0.24, fmt: pct, note: "Best season's share of team scrimmage yards and touchdowns, averaged." },
@@ -113,13 +136,13 @@ export const METRICS = {
     { key: "speed", label: "Speed Score", get: (x) => x.speedScore, range: [85, 115], weight: 0.06, fmt: dec(1), note: "Weight × 200 ÷ 40-time⁴. Only counted once a 40 time is entered." },
   ],
   WR: [
-    { key: "dominator", label: "Dominator", get: (x) => maxOf(x.seasons.map((s) => s.recDominator)), range: [0.1, 0.4], weight: 0.18, fmt: pct, note: "Best season's share of team receiving yards and touchdowns, averaged." },
-    { key: "breakout", label: "Breakout Age", get: (x) => x.breakoutAge, range: [22, 18.5], weight: 0.2, fmt: dec(1), note: "Age at the first season with a 20%+ dominator. No breakout scores zero." },
-    { key: "recPg", label: "Rec Yds/G", get: (x) => maxOf(x.seasons.map((s) => s.recPg)), range: [30, 110], weight: 0.18, fmt: dec(1), note: "Best season's receiving yards per team game." },
-    { key: "ypr", label: "Yds/Catch", get: (x) => ratio(sum(x.seasons, "recYds"), sum(x.seasons, "rec")), range: [11, 18], weight: 0.16, fmt: dec(1), note: "Career yards per reception." },
-    { key: "draftAge", label: "Draft Age", get: (x) => x.draftAge, range: [23.5, 20.5], weight: 0.18, fmt: dec(1), note: "Age on draft day. Younger is better." },
-    { key: "size", label: "Size", get: (x) => x.height, range: [69, 76], weight: 0.04, fmt: inches, note: "Listed height." },
-    { key: "speed", label: "Speed Score", get: (x) => x.speedScore, range: [85, 115], weight: 0.06, fmt: dec(1), note: "Weight × 200 ÷ 40-time⁴. Only counted once a 40 time is entered." },
+    { key: "dominator", label: "Dominator", get: (x) => maxOf(x.seasons.map((s) => s.recDominator)), range: [0.1, 0.4], weight: 0.163, fmt: pct, note: "Best season's share of team receiving yards and touchdowns, averaged." },
+    { key: "breakout", label: "Breakout Age", get: (x) => x.breakoutAge, range: [22, 18.5], weight: 0.242, fmt: dec(1), note: "Age at the first season with a 20%+ dominator. No breakout scores zero." },
+    { key: "recPg", label: "Rec Yds/G", get: (x) => maxOf(x.seasons.map((s) => s.recPg)), range: [30, 110], weight: 0.174, fmt: dec(1), note: "Best season's receiving yards per team game." },
+    { key: "ypr", label: "Yds/Catch", get: (x) => ratio(sum(x.seasons, "recYds"), sum(x.seasons, "rec")), range: [11, 18], weight: 0.155, fmt: dec(1), note: "Career yards per reception." },
+    { key: "draftAge", label: "Draft Age", get: (x) => x.draftAge, range: [23.5, 20.5], weight: 0.109, fmt: dec(1), note: "Age on draft day. Younger is better." },
+    { key: "size", label: "Size", get: (x) => x.height, range: [69, 76], weight: 0.048, fmt: inches, note: "Listed height." },
+    { key: "speed", label: "Speed Score", get: (x) => x.speedScore, range: [85, 115], weight: 0.109, fmt: dec(1), note: "Weight × 200 ÷ 40-time⁴. Only counted once a 40 time is entered." },
   ],
   TE: [
     { key: "dominator", label: "Dominator", get: (x) => maxOf(x.seasons.map((s) => s.recDominator)), range: [0.06, 0.25], weight: 0.24, fmt: pct, note: "Best season's share of team receiving yards and touchdowns, averaged." },
@@ -136,13 +159,41 @@ function sum(rows, key) {
   return rows.reduce((s, r) => s + (r[key] || 0), 0);
 }
 
-// Share of the overall that comes from the production grade; the rest is draft capital.
-// Calibrated on the 2018–22 drafts: for RBs and WRs, where they were drafted predicted
-// fantasy hits far better than college box scores did, while QB production held up.
-export const PROFILE_SHARE = { QB: 0.6, RB: 0.15, WR: 0.15, TE: 0.3 };
-const shareText = (pos) => `${Math.round(PROFILE_SHARE[pos] * 100)}% grade + ${Math.round((1 - PROFILE_SHARE[pos]) * 100)}% draft capital`;
-export const BLEND_TEXT = Object.keys(PROFILE_SHARE).map((p) => `${p} ${shareText(p)}`).join(" · ");
-export const blendText = shareText;
+// Position grade = a × production profile + b × draft capital + c (both inputs 0-10).
+// The production part on its own is the pre-draft score; b × capital is the draft-capital boost.
+// a, b and c were fitted to reference scores for 18 WRs and 8 QBs; RB and TE have only two
+// reference points each, so their a and b are set by judgement and only c is fitted.
+export const GRADE_FIT = {
+  QB: { a: 0.818, b: 0.989, c: -3.44 },
+  RB: { a: 0.4, b: 0.4, c: 5.83 },
+  WR: { a: 0.461, b: 0.314, c: 5.96 },
+  TE: { a: 0.35, b: 0.45, c: 8.51 },
+};
+// Overall = the grade's percentile among every prospect at the position, modelled as a normal
+// curve fitted to reference (grade, overall) pairs. Z-score = (overall − 50) ÷ 28.8, the spread
+// of a 0-100 percentile, with TEs discounted slightly.
+export const OVERALL_CURVE = {
+  QB: { mu: 2.449, sigma: 4.529 },
+  RB: { mu: 8.03, sigma: 2.5 },
+  WR: { mu: 8.26, sigma: 1.831 },
+  TE: { mu: 8.83, sigma: 2.5 },
+};
+const Z_SPREAD = 28.8;
+const Z_FACTOR = { TE: 0.956 };
+// Class tiers step down every 0.05 of z from the top of a typical class.
+const CLASS_TIER_TOP = 1.73;
+const CLASS_TIER_STEP = 0.05;
+
+function normCdf(z) {
+  // Abramowitz-Stegun 7.1.26 via erf.
+  const t = 1 / (1 + 0.3275911 * Math.abs(z / Math.SQRT2));
+  const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-(z * z) / 2);
+  return z >= 0 ? (1 + y) / 2 : (1 - y) / 2;
+}
+export const gradeFormula = (pos) => {
+  const f = GRADE_FIT[pos];
+  return `${f.a.toFixed(2)} × production + ${f.b.toFixed(2)} × draft capital ${f.c < 0 ? "−" : "+"} ${Math.abs(f.c).toFixed(2)}`;
+};
 
 // Big-board rank → draft capital grade (log scale) and projected round.
 export const UNRANKED_RANK = 200;
@@ -267,8 +318,14 @@ function gradeProspect(r, seasonRows, { id, draftYear, capitalRank, now }) {
   x.profile = wsum ? gsum / wsum : 0;
   // Not on the board at all → priced like a late Day 3 pick rather than skipped.
   x.capital = capitalGrade(capitalRank || UNRANKED_RANK);
-  x.overall = Math.round((PROFILE_SHARE[pos] * x.profile + (1 - PROFILE_SHARE[pos]) * x.capital) * 100) / 10;
-  x.tier = prospectTier(x.overall);
+  const fit = GRADE_FIT[pos];
+  x.predraft = fit.a * x.profile + fit.c;
+  x.capitalBoost = fit.b * x.capital;
+  x.grade = x.predraft + x.capitalBoost;
+  const curve = OVERALL_CURVE[pos];
+  x.overall = Math.floor(normCdf((x.grade - curve.mu) / curve.sigma) * 1000) / 10;
+  x.z = ((x.overall - 50) / Z_SPREAD) * (Z_FACTOR[pos] || 1);
+  x.tier = prospectTier(pos, x.grade);
   x.build = buildLabel(pos, height, weight);
   x.archetype = archetypeLabel(pos, grades);
   x.hype = hypeCall(x.profile, x.capital);
@@ -284,33 +341,69 @@ function hypeCall(profile, capital) {
   return { key: "aligned", label: "Aligned", gap };
 }
 
+// Class order runs on z-score (comparable across positions); position rank on grade.
 function rankWithin(list) {
   for (const P of Object.keys(METRICS)) {
-    const pool = list.filter((x) => x.pos === P);
-    const mean = avg(pool.map((x) => x.overall)) || 0;
-    const sd = Math.sqrt(avg(pool.map((x) => (x.overall - mean) ** 2)) || 0);
-    pool.sort((a, b) => b.overall - a.overall).forEach((x, i) => {
+    list.filter((x) => x.pos === P).sort((a, b) => b.grade - a.grade).forEach((x, i) => {
       x.posRank = i + 1;
-      x.z = sd ? (x.overall - mean) / sd : 0;
     });
   }
-  list.sort((a, b) => b.overall - a.overall || b.profile - a.profile);
+  list.sort((a, b) => b.z - a.z || b.grade - a.grade);
   list.forEach((x, i) => {
     x.rank = i + 1;
     x.slot = `${Math.floor(i / 12) + 1}.${String((i % 12) + 1).padStart(2, "0")}`;
+    x.classTier = Math.max(1, 1 + Math.floor((CLASS_TIER_TOP - x.z) / CLASS_TIER_STEP));
   });
   return list;
 }
 
-// The coming class: rows from prospects_<year>.csv and prospect_seasons.csv.
-export function buildProspects(bioRows, seasonRows, now = Date.now()) {
-  const seasonsBy = seasonsById(seasonRows);
-  const list = bioRows.filter((r) => r.Player && METRICS[(r.Position || "").toUpperCase()]).map((r) => {
+// Tag each college season with the share of the same school's offense that went to other
+// future picks in the same position group (rounds 1-3, or anyone in the coming class).
+const ROOM_GROUP = { WR: "rec", TE: "rec", RB: "rb" };
+function attachRooms(entries) {
+  const index = {};
+  const shareOf = (group, s) =>
+    group === "rec" ? ratio(s.recYds, s.teamRecYds) : ratio(s.rushYds + s.recYds, s.teamRushYds != null && s.teamRecYds != null ? s.teamRushYds + s.teamRecYds : null);
+  for (const e of entries) {
+    const group = ROOM_GROUP[e.pos];
+    if (!group || !e.counts) continue;
+    for (const s of e.seasons) {
+      const share = shareOf(group, s);
+      if (share != null) (index[`${s.school}|${s.season}|${group}`] = index[`${s.school}|${s.season}|${group}`] || []).push({ id: e.id, share });
+    }
+  }
+  for (const e of entries) {
+    const group = ROOM_GROUP[e.pos];
+    for (const s of e.seasons) {
+      s.room = group ? (index[`${s.school}|${s.season}|${group}`] || []).filter((o) => o.id !== e.id).reduce((t, o) => t + o.share, 0) : 0;
+    }
+  }
+}
+
+const isSkill = (r) => r.Player && METRICS[(r.Position || "").toUpperCase()];
+const sleeperImg = (id) => (id ? `https://sleepercdn.com/content/nfl/players/thumb/${id}.jpg` : null);
+
+// Both the coming class and the past classes, graded together so crowded rooms see each other.
+export function buildAll(bioRows, seasonRows, histBio, histSeasons, now = Date.now()) {
+  const current = seasonsById(seasonRows);
+  const past = seasonsById(histSeasons);
+  attachRooms([
+    ...bioRows.filter(isSkill).map((r) => ({ id: slug(r.Player), pos: r.Position.toUpperCase(), counts: true, seasons: current[slug(r.Player)] || [] })),
+    ...histBio.filter(isSkill).map((r) => ({ id: r["Player Id"], pos: r.Position.toUpperCase(), counts: num(r.Round) <= 3, seasons: past[r["Player Id"]] || [] })),
+  ]);
+  const history = buildHistory(histBio, past, now);
+  return { prospects: buildProspects(bioRows, current, now), history };
+}
+
+// The coming class: rows from prospects_<year>.csv and prospect_seasons.csv (by player id).
+function buildProspects(bioRows, seasonsBy, now) {
+  const list = bioRows.filter(isSkill).map((r) => {
     const id = slug(r.Player);
     const boardRank = num(r["Board Rank"]);
     const x = gradeProspect(r, seasonsBy[id] || [], { id, draftYear: PROSPECT_CLASS, capitalRank: boardRank, now });
     x.boardRank = boardRank;
     x.round = projectedRound(boardRank);
+    x.img = r.Image || null;
     return x;
   });
   return rankWithin(list);
@@ -318,12 +411,12 @@ export function buildProspects(bioRows, seasonRows, now = Date.now()) {
 
 // Past classes: every QB/RB/WR/TE drafted since 2018, graded with the actual pick as draft capital
 // and paired with what happened in the NFL.
-export function buildHistory(bioRows, seasonRows, now = Date.now()) {
-  const seasonsBy = seasonsById(seasonRows);
-  const list = bioRows.filter((r) => r.Player && METRICS[(r.Position || "").toUpperCase()]).map((r) => {
+function buildHistory(bioRows, seasonsBy, now) {
+  const list = bioRows.filter(isSkill).map((r) => {
     const id = r["Player Id"];
     const pick = num(r.Pick);
     const x = gradeProspect(r, seasonsBy[id] || [], { id, draftYear: num(r["Draft Year"]), capitalRank: pick, now });
+    x.img = sleeperImg(r["Sleeper Id"]);
     x.pick = pick;
     x.draftRound = num(r.Round);
     x.round = roundBucket(x.draftRound);
@@ -447,9 +540,9 @@ export async function loadProspectData() {
     get(`prospects_${PROSPECT_CLASS}.csv`), get("prospect_seasons.csv"), get("prospect_hit_rates.csv"),
     get("prospect_history.csv"), get("prospect_history_seasons.csv"),
   ]);
-  const history = buildHistory(histBio, histSeasons);
+  const { prospects, history } = buildAll(bio, seasons, histBio, histSeasons);
   return {
-    prospects: buildProspects(bio, seasons), hitRates: buildHitRates(hits), history,
+    prospects, hitRates: buildHitRates(hits), history,
     tierHits: tierHitRates(history), hypeCard: hypeScorecard(history),
   };
 }

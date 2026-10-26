@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import { Pos } from "./ui";
 import { fmt, heightLabel } from "@/lib/model";
 import {
-  BLEND_TEXT, BREAKOUT_LABEL, HYPE_GAP, blendText, METRICS, OUTCOMES, PROSPECT_CLASS, PROSPECT_TIERS, ROUND_BUCKETS, ROUND_LABELS, UNRANKED_RANK,
-  closestProfiles, dominatorOf, gradeTone, letter, outcomeBucket, outcomeMix, tierRoundGrid,
+  BREAKOUT_LABEL, HYPE_GAP, METRICS, OUTCOMES, PROSPECT_CLASS, PROSPECT_TIERS, ROOM_WEIGHT, ROUND_BUCKETS, ROUND_LABELS, TIER_CUTS, UNRANKED_RANK,
+  closestProfiles, dominatorOf, gradeFormula, gradeTone, letter, outcomeBucket, outcomeMix, tierRoundGrid,
 } from "@/lib/prospects";
 
 const initials = (name) => name.replace(/\b(Jr|Sr|II|III|IV)\.?$/i, "").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("");
@@ -43,13 +43,20 @@ function HypeBadge({ x }) {
   return <span className="px-outcome" style={{ "--o": tone }} title={`Profile ${x.profile.toFixed(2)} vs draft capital ${x.capital.toFixed(1)}`}>{x.hype.label}</span>;
 }
 
+// Headshot when we have one (Sleeper, for players now in the NFL), otherwise school-colored initials.
 function Monogram({ x, size = 64 }) {
+  const [broken, setBroken] = useState(false);
   return (
     <span className="px-mono" style={{ "--s": x.color, width: size, height: size, fontSize: size * 0.38 }} aria-hidden="true">
-      {initials(x.name)}
+      {x.img && !broken ? <img src={x.img} alt="" loading="lazy" onError={() => setBroken(true)} /> : initials(x.name)}
     </span>
   );
 }
+
+// Projected (or actual) draft slot as a label, the way scouts talk about it.
+const slotLabel = (pick) =>
+  !pick ? "Unranked" : pick <= 10 ? "Top 10" : pick <= 32 ? "1st Round" : pick <= 64 ? "2nd Round" : pick <= 100 ? "3rd Round" : "Day 3";
+const predraftLabel = (x) => slotLabel(isPast(x) ? x.pick : x.boardRank);
 
 export function GradeBar({ grade, compare }) {
   return (
@@ -110,7 +117,7 @@ function BoardTile({ x, featured, onOpen }) {
       <div className="px-tile-body" style={{ "--s": x.color }}>
         <span className="px-tile-slot">{x.slot}</span>
         <span className="px-tile-pos"><Pos pos={x.pos} rank={x.posRank} /></span>
-        <span className="px-tile-mono">{initials(x.name)}</span>
+        {x.img ? <img className="px-tile-photo" src={x.img} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} /> : <span className="px-tile-mono">{initials(x.name)}</span>}
         <span className="px-tile-school">{x.school}{isPast(x) ? ` · pick ${x.pick}` : ""}</span>
         {isPast(x) && <span className="px-tile-outcome"><OutcomeBadge x={x} /></span>}
       </div>
@@ -138,7 +145,7 @@ export function BoardView({ list, year, onOpen }) {
         {rest.slice(0, 47).map((x) => <BoardTile key={x.id} x={x} onOpen={onOpen} />)}
       </div>
       <p className="muted small" style={{ margin: 0 }}>
-        Slots are a 12-team rookie draft in BGM Prospect Score order{year === PROSPECT_CLASS ? "" : ", graded as the class looked before its draft, with the actual pick as draft capital"}.
+        Slots are a 12-team rookie draft in Z-score order{year === PROSPECT_CLASS ? "" : ", graded as the class looked before its draft, with the actual pick as draft capital"}.
         {list.length > 48 ? " The board shows the top 48; see Rankings for everyone." : ""} Click a prospect for the full report card.
       </p>
     </div>
@@ -156,25 +163,24 @@ const peakDom = (x) => {
 };
 
 const OVERVIEW_COLS = [
-  { key: "posRank", label: "Pos Rk", get: (x) => x.posRank, show: (x) => `${x.pos}${x.posRank}`, asc: true },
-  { key: "tier", label: "Tier", get: (x) => x.overall, show: (x) => <TierBadge tier={x.tier} small /> },
-  { key: "overall", label: "Overall", get: (x) => x.overall, show: (x) => <b className="px-num">{x.overall.toFixed(1)}</b> },
-  { key: "profile", label: "Grade", get: (x) => x.profile, show: (x) => <span style={{ color: gradeTone(x.profile), fontWeight: 600 }}>{x.profile.toFixed(2)}</span> },
-  { key: "z", label: "Z", get: (x) => x.z, show: (x) => x.z.toFixed(2) },
-  { key: "hype", label: "Model vs Hype", get: (x) => x.hype.gap, show: (x) => <HypeBadge x={x} /> },
-  { key: "archetype", label: "Archetype", get: (x) => x.archetype, show: (x) => x.archetype },
-  { key: "build", label: "Build", get: (x) => x.build, show: (x) => x.build },
+  { key: "posRank", label: "Pos", get: (x) => x.posRank, show: (x) => <b style={{ color: `var(--${x.pos.toLowerCase()})` }}>{x.pos}{x.posRank}</b>, asc: true },
+  { key: "tier", label: "Tier", get: (x) => x.grade, show: (x) => <TierBadge tier={x.tier} small /> },
+  { key: "classTier", label: "Class Tier", get: (x) => x.classTier, show: (x) => x.classTier, asc: true },
+  { key: "z", label: "Z-Score", get: (x) => x.z, show: (x) => <b className="px-num">{x.z.toFixed(2)}</b> },
+  { key: "overall", label: "Overall", get: (x) => x.overall, show: (x) => x.overall.toFixed(1) },
+  { key: "grade", label: "Grade", get: (x) => x.grade, show: (x) => <span style={{ color: "var(--good)", fontWeight: 600 }}>{x.grade.toFixed(2)}</span> },
   { key: "height", label: "Ht", get: (x) => x.height, show: (x) => heightLabel(x.height) },
   { key: "weight", label: "Wt", get: (x) => x.weight, show: (x) => x.weight ?? "—" },
   { key: "forty", label: "40", get: (x) => x.forty, show: (x) => (x.forty ? x.forty.toFixed(2) : "—"), asc: true },
   { key: "draftAge", label: "Draft Age", get: (x) => x.draftAge, show: (x) => ageLabel(x, x.draftAge), asc: true },
-];
-const FUTURE_COLS = [
-  { key: "round", label: "Proj Round", get: (x) => x.boardRank || UNRANKED_RANK, show: roundLabel, asc: true },
+  { key: "predraft", label: "Pre-Draft", get: (x) => (isPast(x) ? x.pick : x.boardRank || UNRANKED_RANK), show: predraftLabel, asc: true },
+  { key: "hype", label: "Model vs Hype", get: (x) => x.hype.gap, show: (x) => <HypeBadge x={x} /> },
+  { key: "archetype", label: "Archetype", get: (x) => x.archetype, show: (x) => x.archetype },
+  { key: "build", label: "Build", get: (x) => x.build, show: (x) => x.build },
 ];
 const PAST_COLS = [
-  { key: "pick", label: "Pick", get: (x) => x.pick, show: pickLabel, asc: true },
-  { key: "outcome", label: "NFL Outcome", get: (x) => -(x.outcome.best4 ?? 999), show: (x) => <OutcomeBadge x={x} /> },
+  { key: "pick", label: "NFL Pick", get: (x) => x.pick, show: pickLabel, asc: true },
+  { key: "outcome", label: "NFL Outcome", get: (x) => (isPast(x) ? -(x.outcome.best4 ?? 999) : null), show: (x) => (isPast(x) ? <OutcomeBadge x={x} /> : <span className="muted small">Not drafted yet</span>) },
 ];
 const PRODUCTION_COLS = [
   { key: "dom", label: "Peak Dom", get: peakDom, show: (x) => (peakDom(x) == null ? "—" : `${(peakDom(x) * 100).toFixed(1)}%`) },
@@ -190,8 +196,10 @@ const PRODUCTION_COLS = [
 ];
 function inputCols(pos) {
   const base = [
-    { key: "profile", label: "Grade", get: (x) => x.profile, show: (x) => x.profile.toFixed(2) },
-    { key: "capital", label: "Capital", get: (x) => x.capital, show: (x) => x.capital.toFixed(1) },
+    { key: "grade", label: "Grade", get: (x) => x.grade, show: (x) => x.grade.toFixed(2) },
+    { key: "predraftScore", label: "Pre-Draft Score", get: (x) => x.predraft, show: (x) => x.predraft.toFixed(2) },
+    { key: "capitalBoost", label: "DC Boost", get: (x) => x.capitalBoost, show: (x) => `+${x.capitalBoost.toFixed(2)}` },
+    { key: "profile", label: "Production", get: (x) => x.profile, show: (x) => x.profile.toFixed(2) },
   ];
   if (pos === "ALL") {
     return [...base,
@@ -218,27 +226,30 @@ function Select({ value, onChange, all, options }) {
   );
 }
 
-export function RankingsView({ list, pos, past, onOpen }) {
+// Every graded prospect from every class; a single class can be picked from the Class filter.
+export function RankingsView({ list, pos, onOpen }) {
   const [q, setQ] = useState("");
+  const [cls, setCls] = useState("");
   const [tier, setTier] = useState("");
   const [arch, setArch] = useState("");
   const [build, setBuild] = useState("");
   const [round, setRound] = useState("");
   const [cols, setCols] = useState("overview");
-  const [sort, setSort] = useState({ key: "overall", asc: false });
+  // One position across classes ranks by grade; mixed positions need z-score to be comparable.
+  const [sort, setSort] = useState({ key: pos === "ALL" ? "z" : "grade", asc: false });
 
   const columns = useMemo(
-    () => (cols === "overview" ? [...OVERVIEW_COLS, ...(past ? PAST_COLS : FUTURE_COLS)] : cols === "production" ? PRODUCTION_COLS : inputCols(pos)),
-    [cols, past, pos],
+    () => (cols === "overview" ? [...OVERVIEW_COLS, ...PAST_COLS] : cols === "production" ? PRODUCTION_COLS : inputCols(pos)),
+    [cols, pos],
   );
   const options = (f) => [...new Set(list.map(f))].sort();
-  const roundOptions = past
-    ? [1, 2, 3, 4, 5, 6, 7].map((r) => `Round ${r}`)
-    : [...ROUND_BUCKETS.map((r) => ROUND_LABELS[r]), "Unranked"];
+  const classes = [...new Set(list.map((x) => x.draftYear))].sort((a, b) => b - a);
+  const roundOptions = [...[1, 2, 3, 4, 5, 6, 7].map((r) => `Round ${r}`), ...ROUND_BUCKETS.map((r) => ROUND_LABELS[r]), "Unranked"];
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
     const out = list.filter((x) =>
       (!term || `${x.name} ${x.school}`.toLowerCase().includes(term)) &&
+      (!cls || x.draftYear === Number(cls)) &&
       (!tier || x.tier.key === tier) && (!arch || x.archetype === arch) && (!build || x.build === build) &&
       (!round || roundLabel(x) === round));
     const col = columns.find((c) => c.key === sort.key);
@@ -250,18 +261,19 @@ export function RankingsView({ list, pos, past, onOpen }) {
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
-      return (av > bv ? 1 : av < bv ? -1 : 0) * dir || b.overall - a.overall;
+      return (av > bv ? 1 : av < bv ? -1 : 0) * dir || b.z - a.z;
     });
   }, [list, q, tier, arch, build, round, sort, columns]);
 
   const clickSort = (c) => setSort((s) => (s.key === c.key ? { key: c.key, asc: !s.asc } : { key: c.key, asc: !!c.asc }));
-  const filtered = q || tier || arch || build || round;
-  const clear = () => [setQ, setTier, setArch, setBuild, setRound].forEach((f) => f(""));
+  const filtered = q || cls || tier || arch || build || round;
+  const clear = () => [setQ, setCls, setTier, setArch, setBuild, setRound].forEach((f) => f(""));
 
   return (
     <div className="card" style={{ padding: "0.9rem 1rem" }}>
       <div className="px-filters">
         <input className="input" placeholder="Filter by name or school" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Select value={cls} onChange={setCls} all="All classes" options={classes.map(String)} />
         <Select value={tier} onChange={setTier} all="All tiers" options={PROSPECT_TIERS.map((t) => t.key).filter((t) => list.some((x) => x.tier.key === t))} />
         <Select value={arch} onChange={setArch} all="All archetypes" options={options((x) => x.archetype)} />
         <Select value={build} onChange={setBuild} all="All builds" options={options((x) => x.build)} />
@@ -280,10 +292,11 @@ export function RankingsView({ list, pos, past, onOpen }) {
         <table className="t">
           <thead>
             <tr>
-              <th className="rnk">#</th>
+              <th className="rnk">Rk</th>
               <th>Player</th>
               <th>School</th>
               <th className="c">Class</th>
+              <th className="c">Slot</th>
               {columns.map((c) => (
                 <th key={c.key} className={`c sortable${sort.key === c.key ? " sorted" : ""}`} onClick={() => clickSort(c)}>
                   {c.label} {sort.key === c.key ? (sort.asc ? "↑" : "↓") : "↕"}
@@ -292,9 +305,9 @@ export function RankingsView({ list, pos, past, onOpen }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((x) => (
+            {rows.map((x, i) => (
               <tr key={x.id} className="px-row" style={{ "--t": x.tier.color }} onClick={() => onOpen(x.id)}>
-                <td className="rnk">{x.rank}</td>
+                <td className="rnk">{i + 1}</td>
                 <td>
                   <button className="plink pcell" onClick={() => onOpen(x.id)} title={`Open ${x.name}`}>
                     <Monogram x={x} size={34} />
@@ -302,7 +315,8 @@ export function RankingsView({ list, pos, past, onOpen }) {
                   </button>
                 </td>
                 <td><span className="px-school"><i style={{ background: x.color }} />{x.school}</span></td>
-                <td className="c">{x.classShort}</td>
+                <td className="c">{x.draftYear} · {x.classShort}</td>
+                <td className="c"><b className="px-num">{x.slot}</b></td>
                 {columns.map((c) => <td key={c.key} className="c">{c.show(x)}</td>)}
               </tr>
             ))}
@@ -351,6 +365,11 @@ function HitRatePanel({ x, hitRates, tierHits }) {
       </p>
       {h ? <RateBars pos={x.pos} h={h} /> : <div className="empty">No past {x.pos}s in this {mode === "tier" ? "tier" : "round"} yet.</div>}
       {h && h.n < 5 && <p className="muted small">Fewer than 5 players: treat this as an anecdote, not a rate.</p>}
+      <div className="px-mini" style={{ marginTop: "0.8rem" }}>
+        <div><small>Pre-draft score</small><b>{x.predraft.toFixed(2)}</b></div>
+        <div><small>Pre-draft grade</small><b>{predraftLabel(x)}</b></div>
+        <div><small>Draft capital boost</small><b>+{x.capitalBoost.toFixed(2)}</b></div>
+      </div>
       {isPast(x) && (
         <div className="px-mini" style={{ marginTop: "0.8rem" }}>
           <div><small>NFL outcome</small><b><OutcomeBadge x={x} /></b></div>
@@ -478,10 +497,10 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, onOpen, 
           <small>{x.draftYear} · {x.classShort}</small>
         </div>
         <div className="hl"><small>Overall</small><b>{x.overall.toFixed(1)}</b></div>
-        <div><small>{x.pos} Grade</small><b>{x.profile.toFixed(2)}</b></div>
+        <div><small>{x.pos} Grade</small><b>{x.grade.toFixed(2)}</b></div>
         <div><small>Z-Score</small><b>{x.z.toFixed(2)}</b></div>
         <div><small>Class Rank</small><b>{x.pos}{x.posRank}</b></div>
-        <div><small>Rookie Slot</small><b>{x.slot}</b></div>
+        <div><small>Class Tier</small><b>{x.classTier}</b></div>
       </div>
 
       <div className="px-bio" style={{ "--s": x.color }}>
@@ -503,7 +522,7 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, onOpen, 
                   <span>{m.label}</span>
                   <GradeBar grade={m.grade} compare={other?.grades[m.key]} />
                   <span className="muted small">{m.fmt(m.value)}</span>
-                  <b>{m.grade == null ? "—" : m.grade.toFixed(1)}</b>
+                  <b>{m.grade == null ? "—" : Math.round(m.grade)}</b>
                   <em style={{ color: gradeTone(m.grade) }}>{m.grade == null ? "" : letter(m.grade)}</em>
                 </div>
               ))}
@@ -540,7 +559,7 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, onOpen, 
           {!x.dobKnown && <li>No published birthdate found, so ages assume 18.6 at the start of his first college season ({x.firstSeason}).</li>}
           {!x.forty && <li>No verified 40 time{isPast(x) ? " (didn't run at the combine)" : " yet"}. Speed Score is left out of his grade.</li>}
           {!isPast(x) && !x.boardRank && <li>Not on the Tankathon big board, so draft capital is priced like pick {UNRANKED_RANK}.</li>}
-          <li>Overall for a {x.pos} = {blendText(x.pos)}, on a 0–100 scale.{isPast(x) ? " Past classes use the actual draft pick." : ""}</li>
+          <li>{x.pos} grade = {gradeFormula(x.pos)}. Production is the weighted average of the 0–10 input grades; draft capital is 0–10 from {isPast(x) ? "the actual pick" : "the big-board rank"}.</li>
         </ul>
       </div>
     </div>
@@ -692,14 +711,17 @@ export function HitRatesView({ history, hitRates, hypeCard, pos }) {
 // ---------------------------------------------------------------------------
 
 const GENERAL_TERMS = [
-  ["Overall", `A blend of the position grade and the draft-capital grade on a 0–100 scale: ${BLEND_TEXT}. The mix was set by testing which one best separated hits from misses among 2018–22 draftees. This is what tiers and class order use.`],
-  ["Position grade", "The weighted average of a prospect's 0–10 input grades (see the inputs below). Inputs with no data are left out and the rest re-weighted."],
-  ["Draft capital", `A 0–10 grade from draft position on a log scale: #1 = 10, #32 = 8, #64 = 6.5, #100 = 5, #150 = 3.5. The coming class uses its Tankathon big-board rank; past classes use the actual pick. Unranked prospects are priced like #${UNRANKED_RANK}.`],
+  ["Position grade", `Production plus draft capital, usually 8–15 for real prospects: ${["QB", "RB", "WR", "TE"].map((p) => `${p} = ${gradeFormula(p)}`).join(" · ")}. Fitted so our grades line up with established prospect-model scores.`],
+  ["Pre-draft score", "The production part of the grade on its own: the position grade before any draft-capital boost."],
+  ["Pre-draft grade", "Where the prospect is projected to go (or went): Top 10, 1st Round, 2nd Round, 3rd Round or Day 3."],
+  ["Draft capital", `A 0–10 grade from draft position on a log scale: #1 = 10, #32 = 8, #64 = 6.5, #100 = 5, #150 = 3.5. The coming class uses its Tankathon big-board rank; past classes use the actual pick. Unranked prospects are priced like #${UNRANKED_RANK}. The DC boost is the grade points it adds.`],
+  ["Overall", "The grade's percentile among every prospect at the position (0–100), so a 98.5 grades better than 98.5% of them."],
+  ["Z-score", "(Overall − 50) ÷ 28.8, which puts every position on one scale; TEs are discounted slightly. Class order and rookie slots run on it."],
+  ["Class tier", "Rookie-draft tiers within a class: a new tier every 0.05 of z-score down from the top."],
+  ["Tier", `Cut on the position grade, best to worst: ${PROSPECT_TIERS.map((t) => t.key).join(", ")}. ${["QB", "RB", "WR", "TE"].map((p) => `${p} cuts: ${TIER_CUTS[p].join(" / ")}`).join(" · ")}.`],
+  ["Crowded room", `When other future draft picks at the same position shared a player's college offense, his dominator is scaled up as if ${Math.round(ROOM_WEIGHT * 100)}% of their share had been his to win. This lifts receivers from loaded rooms (Alabama, Ohio State) and is measured, not hand-picked.`],
   ["Model vs hype", `Compares the production grade with the draft-capital grade. A gap of ${HYPE_GAP}+ either way flags where the model and the market disagree.`],
-  ["Z-score", "How many standard deviations a prospect's overall sits above the average at his position in his class."],
-  ["Class rank", "Position rank within the draft class by overall."],
-  ["Rookie slot", "Where he'd go in a 12-team rookie draft taken in overall order."],
-  ["Tier", PROSPECT_TIERS.map((t) => `${t.key} ${t.min ? `${t.min}+` : `under ${PROSPECT_TIERS[PROSPECT_TIERS.length - 2].min}`}`).join(" · ")],
+  ["Class rank", "Position rank within the draft class by grade."],
   ["Dominator", "A player's share of his team's production in a season. Receivers: average of receiving-yard and receiving-TD share. Backs: the same with scrimmage yards and TDs. QBs: share of team passing yards."],
   ["Breakout age", `Age on Sept 1 of the first season a player clears the position's dominator bar (${BREAKOUT_LABEL}).`],
   ["Draft age", "Age on draft day. \"est.\" means no birthdate was found, so 18.6 at the start of his first college season is assumed."],

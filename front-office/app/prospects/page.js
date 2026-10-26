@@ -39,6 +39,12 @@ export default function Prospects() {
     return [...all].sort((a, b) => a.rank - b.rank);
   }, [data, year]);
   const shown = useMemo(() => (pos === "ALL" ? classList : classList.filter((x) => x.pos === pos)), [classList, pos]);
+  // Rankings span every class: the coming one plus every past draft we've graded.
+  const everyone = useMemo(() => {
+    if (!data) return [];
+    const all = [...data.prospects, ...data.history];
+    return pos === "ALL" ? all : all.filter((x) => x.pos === pos);
+  }, [data, pos]);
 
   const openProspect = (id) => {
     setOpen(id);
@@ -80,9 +86,11 @@ export default function Prospects() {
         accent="Prospect Score"
         sub="Our own rookie model: college production, age and size, blended with draft capital, and checked against how drafted QBs, RBs, WRs and TEs since 2018 actually turned out."
       >
-        <select className="select" value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Draft class">
-          {years.map((y) => <option key={y} value={y}>{y === PROSPECT_CLASS ? `${y} class` : `${y} (past)`}</option>)}
-        </select>
+        {tab === "board" && (
+          <select className="select" value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Draft class">
+            {years.map((y) => <option key={y} value={y}>{y === PROSPECT_CLASS ? `${y} class` : `${y} (past)`}</option>)}
+          </select>
+        )}
         <div className="seg">
           {["ALL", "QB", "RB", "WR", "TE"].map((p) => (
             <button key={p} className={pos === p ? "on" : ""} onClick={() => setPos(p)}>{p === "ALL" ? "All" : p}</button>
@@ -97,7 +105,7 @@ export default function Prospects() {
       </div>
 
       {tab === "board" && <BoardView list={shown} year={year} onOpen={openProspect} />}
-      {tab === "rankings" && <RankingsView key={`${year}-${pos}`} list={shown} pos={pos} past={year !== PROSPECT_CLASS} onOpen={openProspect} />}
+      {tab === "rankings" && <RankingsView key={pos} list={everyone} pos={pos} onOpen={openProspect} />}
       {tab === "hits" && <HitRatesView history={data.history} hitRates={data.hitRates} hypeCard={data.hypeCard} pos={pos} />}
       {tab === "glossary" && <GlossaryView pos={pos} />}
       <p className="muted small" style={{ marginTop: "1.2rem" }}>

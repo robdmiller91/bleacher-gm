@@ -15,7 +15,7 @@ Enter a Sleeper username and pick one of that user's leagues. Sleeper's API is p
 - **Team Blueprint** (`/blueprint`): archetype, positional grades, value and starter share, multi-year outlook, draft capital, cornerstones (star a player) and trade strategy.
 - **League** (`/league`): power rankings with expandable rosters and draft picks.
 - **League History** (`/history`): every past draft board and every trade, with a Drafts/Trades toggle. Trades show what each side's haul is worth today.
-- **Prospects** (`/prospects`): the BGM Prospect Score, our own rookie model. It has a class board, sortable rankings, report cards with grades, a radar chart, historical comps and a model-vs-hype call, plus hit rates by tier and draft round, and a glossary. Every QB/RB/WR/TE drafted since 2018 with college stats on ESPN is graded the same way, so past classes can be browsed alongside what actually happened to those players.
+- **Prospects** (`/prospects`): the BGM Prospect Score, our own rookie model. It has a class board, sortable rankings across every class (2018–2025 plus 2027, filterable by class), report cards with grades, a radar chart, historical comps and a model-vs-hype call, plus hit rates by tier and draft round, and a glossary. Every QB/RB/WR/TE drafted since 2018 with college stats on ESPN is graded the same way, so past classes can be browsed alongside what actually happened to those players.
 - **Player view**: click any player anywhere, or search with ⌘K. Shows a profile, weekly points chart, heat-mapped game logs, news headlines and league context.
 - **Light/dark**: toggle in the top bar. Your choice is remembered.
 
@@ -58,7 +58,8 @@ Checked 21 Oct 2026. Re-check before charging money or passing the usage limits 
 ESPN headshots and logos are not used: Disney's terms forbid reusing ESPN images.
 
 ## BGM Prospect Score
-Our own model, not a copy of anyone else's. The formulas and thresholds are in `lib/prospects.js`, and the Glossary tab explains each input.
+Our own model and labels. Its scoring scale (position grade ≈ 8–15, percentile Overall, Z-score, class tiers) was calibrated so our numbers line up with reference prospect scores we were shown. Across 30 reference players we're within 0.39 grade points and 0.9 Overall points on average. The reference scores are calibration targets only and aren't stored or shown. The formulas and thresholds are in `lib/prospects.js`, and the Glossary tab explains each input.
+- Headshots: past prospects use Sleeper's NFL headshots (`Sleeper Id` column). The coming class shows school-colored initials unless you add an `Image` column to `prospects_2027.csv` pointing at a picture you have the rights to (for example `/img/prospects/jeremiah-smith.jpg` in `public/`).
 - `public/data/prospects_2027.csv`: the coming class (bio, board rank, notes). Add 40 times in the `Forty` column after the combine, and update `Board Rank` as boards move.
 - `public/data/prospect_seasons.csv`: their college seasons with team totals. The 2026 rows are the season to date as of 26 Oct 2026.
 - `public/data/prospect_history.csv` and `prospect_history_seasons.csv`: QBs, RBs, WRs and TEs drafted 2018–2025 (the 588 with college stats on ESPN, whose data starts around 2014), with their college seasons and NFL outcome (best full-PPR positional finish in their first four seasons).
