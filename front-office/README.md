@@ -5,17 +5,17 @@ Dynasty command center for any Sleeper league, built with Next.js for Vercel.
 **Live data:** Sleeper's public API (league, rosters, matchups, live scores, projections, game logs, injuries) and FantasyCalc dynasty values. No API keys are needed.
 
 ## Getting in
-Enter a Sleeper username and pick one of that user's leagues. Sleeper's API is public and read-only, so there's no password and nothing is stored on the server: the chosen league is remembered in the browser (`localStorage`). "Your team" is the roster that user owns or co-owns. Click the league in the top bar to switch. A link with `?league=<league id>` opens that league directly.
+The homepage (the prospect board) needs no login. For the league tools, enter a Sleeper username and pick one of that user's leagues. Sleeper's API is public and read-only, so there's no password and nothing is stored on the server: the chosen league is remembered in the browser (`localStorage`). "Your team" is the roster that user owns or co-owns. Click the league in the top bar to switch. A link with `?league=<league id>` opens that league directly.
 
 ## Pages
-- **Dashboard** (`/`): standings, average points, playoff odds, dynasty rank, live matchup with win probability and lineups, power radar, weekly points vs. league median, position breakdown, injuries, roster.
+- **Dashboard** (`/dashboard`): standings, average points, playoff odds, dynasty rank, live matchup with win probability and lineups, power radar, weekly points vs. league median, position breakdown, injuries, roster.
 - **Rankings** (`/rankings`): tiered dynasty rankings with season stats, owners, sorting and filters.
 - **Trade** (`/trade`): two-sided trade calculator with a value balance and before/after league ranks for both teams.
 - **Roster Lab** (`/roster-lab`): sandbox for hypothetical moves (any team, free agents, rookies, picks) with before/after ranks, league shares and a three-year value trajectory.
 - **Team Blueprint** (`/blueprint`): archetype, positional grades, value and starter share, multi-year outlook, draft capital, cornerstones (star a player) and trade strategy.
 - **League** (`/league`): power rankings with expandable rosters and draft picks.
 - **League History** (`/history`): every past draft board and every trade, with a Drafts/Trades toggle. Trades show what each side's haul is worth today.
-- **Prospects** (`/prospects`): the BGM Prospect Score, our own rookie model. It has a class board, sortable rankings across every class (2018–2025 plus 2027, filterable by class), report cards with grades, a radar chart, historical comps and a model-vs-hype call, plus hit rates by tier and draft round, and a glossary. Every QB/RB/WR/TE drafted since 2018 with college stats on ESPN is graded the same way, so past classes can be browsed alongside what actually happened to those players.
+- **Prospects** (`/`, the homepage; `/prospects` also works): the BGM Prospect Score, our own rookie model. It has a class board, sortable rankings across every class (2018–2025 plus 2027, filterable by class), report cards (grades, radar chart, tier and draft-round hit rates, historical comps, head-to-head compare and a model-vs-hype call) and a glossary. Tiers follow the screenshot model: Cornerstone, Elite (Elite+ / Elite / Elite Lite), Elite Upside, Upside, Upside Lite, Outlier, Outlier Lite, Purgatory. Every QB/RB/WR/TE drafted since 2018 with college stats on ESPN is graded the same way, so past classes can be browsed alongside what actually happened to those players.
 - **Player view**: click any player anywhere, or search with ⌘K. Shows a profile, weekly points chart, heat-mapped game logs, news headlines and league context.
 - **Light/dark**: toggle in the top bar. Your choice is remembered.
 

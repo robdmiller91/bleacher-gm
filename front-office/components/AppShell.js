@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Icon, Img, Pos } from "./ui";
 import PlayerModal from "./PlayerModal";
 import Connect from "./Connect";
@@ -10,13 +10,15 @@ import Connect from "./Connect";
 const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
+const LEAGUE_FREE = ["/", "/prospects"];
+
 const NAV = [
-  { href: "/", label: "Dashboard", icon: "home" },
+  { href: "/", label: "Prospects", icon: "cap" },
+  { href: "/dashboard", label: "Dashboard", icon: "home" },
   { href: "/rankings", label: "Rankings", icon: "rankings" },
   { href: "/trade", label: "Trade", icon: "trade" },
   { href: "/roster-lab", label: "Roster Lab", icon: "lab" },
   { href: "/blueprint", label: "Blueprint", icon: "blueprint" },
-  { href: "/prospects", label: "Prospects", icon: "cap" },
   { href: "/league", label: "League", icon: "league" },
   { href: "/history", label: "History", icon: "history" },
 ];
@@ -140,6 +142,7 @@ function Loading({ error, onSwitch }) {
 
 export default function AppShell({ children }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sel, setSel] = useState(undefined); // undefined until read from the browser, null when no league is chosen
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -224,8 +227,11 @@ export default function AppShell({ children }) {
   const ctx = useMemo(() => ({ data, live, openPlayer, theme, leagueQuery }), [data, live, openPlayer, theme, leagueQuery]);
   const me = data?.teams.find((t) => t.rosterId === data.me);
 
+  // The prospect pages don't need a Sleeper league, so they render before (or without) connecting one.
+  const leagueFree = LEAGUE_FREE.includes(pathname);
   let body;
-  if (sel === undefined) body = <Loading />;
+  if (leagueFree) body = children;
+  else if (sel === undefined) body = <Loading />;
   else if (!leagueId) body = <Connect initialUsername={sel?.username || ""} onPick={pickLeague} />;
   else body = data ? children : <Loading error={error} onSwitch={switchLeague} />;
 
@@ -245,7 +251,17 @@ export default function AppShell({ children }) {
 
         <div className="main">
           <header className="topbar">
-            <button type="button" className="league-pill" onClick={switchLeague} title="Switch league" disabled={!leagueId}>
+            <button
+              type="button"
+              className="league-pill"
+              onClick={() => {
+                switchLeague();
+                // The league picker lives on the league pages, not on the prospect board.
+                if (LEAGUE_FREE.includes(pathname)) router.push("/dashboard");
+              }}
+              title="Switch league"
+              disabled={!leagueId}
+            >
               <Img src={me?.avatar || data?.league.avatar} />
               <div className="league-pill-text">
                 <div className="league-pill-name">{data?.league.name || (leagueId ? "Loading league…" : "No league yet")}</div>

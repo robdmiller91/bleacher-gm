@@ -21,24 +21,29 @@ export const schoolColor = (school) => SCHOOL_COLORS[school] || "#334155";
 
 // Tiers are cut on the position grade, best to worst; each position has its own cut lines.
 export const PROSPECT_TIERS = [
-  { key: "Franchise", color: "#9333ea" },
-  { key: "Star", color: "#1e1b8f" },
-  { key: "Blue Chip", color: "#2563eb" },
-  { key: "Starter Upside", color: "#3b82f6" },
-  { key: "Flex Upside", color: "#166534" },
-  { key: "Depth Stash", color: "#16a34a" },
-  { key: "Long Shot", color: "#ca8a04" },
-  { key: "Dart Throw", color: "#ea580c" },
+  { key: "Cornerstone", color: "#8b2fd6" },
+  { key: "Elite", color: "#1a1670" },
+  { key: "Elite Upside", color: "#1f45d6" },
+  { key: "Upside", color: "#3c7de0" },
+  { key: "Upside Lite", color: "#173d1c" },
+  { key: "Outlier", color: "#4c9a3c" },
+  { key: "Outlier Lite", color: "#b8902e" },
+  { key: "Purgatory", color: "#e5672a" },
 ];
 export const TIER_CUTS = {
-  QB: [12.5, 11.5, 10.5, 9.75, 9.0, 8.25, 7.5],
-  RB: [12.8, 12.0, 11.2, 10.4, 9.6, 8.8, 8.0],
-  WR: [12.45, 11.5, 11.0, 10.25, 9.5, 8.75, 8.0],
+  QB: [12.5, 11.4, 9.6, 8.5, 7.5, 6.5, 5.5],
+  RB: [12.6, 12.0, 10.75, 10.0, 9.6, 9.3, 9.0],
+  WR: [12.5, 11.45, 11.0, 9.95, 9.25, 8.5, 7.75],
   TE: [13.5, 12.5, 11.75, 11.0, 10.25, 9.5, 8.75],
 };
+// The Elite band is labelled Elite+ at its top and Elite Lite at its bottom.
+const ELITE_SPLITS = { QB: [12.4, 11.5], RB: [12.45, 12.2], WR: [12.0, 11.7], TE: [13.2, 12.8] };
 export const prospectTier = (pos, grade) => {
   const i = TIER_CUTS[pos].findIndex((cut) => grade >= cut);
-  return PROSPECT_TIERS[i === -1 ? PROSPECT_TIERS.length - 1 : i];
+  const tier = PROSPECT_TIERS[i === -1 ? PROSPECT_TIERS.length - 1 : i];
+  if (tier.key !== "Elite") return { ...tier, label: tier.key };
+  const [plus, lite] = ELITE_SPLITS[pos];
+  return { ...tier, label: grade >= plus ? "Elite+" : grade < lite ? "Elite Lite" : "Elite" };
 };
 
 // Letters for 0-10 input grades, on the rounded grade.
@@ -164,18 +169,18 @@ function sum(rows, key) {
 // a, b and c were fitted to reference scores for 18 WRs and 8 QBs; RB and TE have only two
 // reference points each, so their a and b are set by judgement and only c is fitted.
 export const GRADE_FIT = {
-  QB: { a: 0.818, b: 0.989, c: -3.44 },
-  RB: { a: 0.4, b: 0.4, c: 5.83 },
-  WR: { a: 0.461, b: 0.314, c: 5.96 },
+  QB: { a: 0.631, b: 0.707, c: 0.76 },
+  RB: { a: 0.2, b: 0.2, c: 8.77 },
+  WR: { a: 0.295, b: 0.453, c: 5.8 },
   TE: { a: 0.35, b: 0.45, c: 8.51 },
 };
 // Overall = the grade's percentile among every prospect at the position, modelled as a normal
 // curve fitted to reference (grade, overall) pairs. Z-score = (overall − 50) ÷ 28.8, the spread
 // of a 0-100 percentile, with TEs discounted slightly.
 export const OVERALL_CURVE = {
-  QB: { mu: 2.449, sigma: 4.529 },
-  RB: { mu: 8.03, sigma: 2.5 },
-  WR: { mu: 8.26, sigma: 1.831 },
+  QB: { mu: 3.876, sigma: 3.897 },
+  RB: { mu: 4.274, sigma: 4.902 },
+  WR: { mu: 7.926, sigma: 1.976 },
   TE: { mu: 8.83, sigma: 2.5 },
 };
 const Z_SPREAD = 28.8;
@@ -403,7 +408,8 @@ function buildProspects(bioRows, seasonsBy, now) {
     const x = gradeProspect(r, seasonsBy[id] || [], { id, draftYear: PROSPECT_CLASS, capitalRank: boardRank, now });
     x.boardRank = boardRank;
     x.round = projectedRound(boardRank);
-    x.img = r.Image || null;
+    // Drop a photo you have the rights to into public/img/prospects/<id>.jpg and it shows up.
+    x.img = r.Image || `/img/prospects/${id}.jpg`;
     return x;
   });
   return rankWithin(list);

@@ -23,7 +23,7 @@ const rateColor = (p) => (p >= 50 ? "var(--good)" : p >= 25 ? "var(--pk)" : "var
 export function TierBadge({ tier, small }) {
   return (
     <span className={`px-tier${small ? " small" : ""}`} style={{ "--t": tier.color }}>
-      {tier.key}
+      {tier.label || tier.key}
     </span>
   );
 }
@@ -108,24 +108,32 @@ function Radar({ metrics, other }) {
 // ---------------------------------------------------------------------------
 
 function BoardTile({ x, featured, onOpen }) {
+  const [broken, setBroken] = useState(false);
   return (
     <button className={`px-tile${featured ? " featured" : ""}`} onClick={() => onOpen(x.id)}>
-      <div className="px-tile-head">
+      <div className="px-tile-head" style={{ "--t": x.tier.color }}>
         <span>{shortName(x.name)}</span>
         <b>{x.overall.toFixed(1)}</b>
       </div>
       <div className="px-tile-body" style={{ "--s": x.color }}>
         <span className="px-tile-slot">{x.slot}</span>
-        <span className="px-tile-pos"><Pos pos={x.pos} rank={x.posRank} /></span>
-        {x.img ? <img className="px-tile-photo" src={x.img} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} /> : <span className="px-tile-mono">{initials(x.name)}</span>}
-        <span className="px-tile-school">{x.school}{isPast(x) ? ` · pick ${x.pick}` : ""}</span>
+        <span className="px-tile-badges">
+          <span className="px-school-chip small" style={{ "--s": x.color }} title={x.school}>{x.school.split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase()}</span>
+          <span className="px-pos-chip" style={{ color: `var(--${x.pos.toLowerCase()})` }}>{x.pos}</span>
+        </span>
+        {x.img && !broken ? (
+          <img className="px-tile-photo" src={x.img} alt="" loading="lazy" onError={() => setBroken(true)} />
+        ) : (
+          <span className="px-tile-mono">{initials(x.name)}</span>
+        )}
         {isPast(x) && <span className="px-tile-outcome"><OutcomeBadge x={x} /></span>}
       </div>
-      <div className="px-tile-tier" style={{ background: x.tier.color }}>{x.tier.key}</div>
+      <div className="px-tile-tier" style={{ background: x.tier.color }}>{x.tier.label || x.tier.key}</div>
     </button>
   );
 }
 
+// Class headline, KPIs and the top of the rookie draft: the 1.01 featured, then the next six.
 export function BoardView({ list, year, onOpen }) {
   if (!list.length) return <div className="card empty">No prospects at this position.</div>;
   const [first, ...rest] = list;
@@ -137,23 +145,19 @@ export function BoardView({ list, year, onOpen }) {
         <div className="px-kpis">
           <div><small>Prospects</small><b>{list.length}</b></div>
           <div><small>Top Z-Score</small><b>{Math.max(...list.map((x) => x.z)).toFixed(2)}</b></div>
-          <div><small>{PROSPECT_TIERS[0].key}</small><b>{topTier}</b></div>
+          <div><small>{PROSPECT_TIERS[0].key}s</small><b>{topTier}</b></div>
         </div>
       </div>
       <div className="px-board">
         <BoardTile x={first} featured onOpen={onOpen} />
-        {rest.slice(0, 47).map((x) => <BoardTile key={x.id} x={x} onOpen={onOpen} />)}
+        {rest.slice(0, 6).map((x) => <BoardTile key={x.id} x={x} onOpen={onOpen} />)}
       </div>
-      <p className="muted small" style={{ margin: 0 }}>
-        Slots are a 12-team rookie draft in Z-score order{year === PROSPECT_CLASS ? "" : ", graded as the class looked before its draft, with the actual pick as draft capital"}.
-        {list.length > 48 ? " The board shows the top 48; see Rankings for everyone." : ""} Click a prospect for the full report card.
-      </p>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Rankings table with filters and three column sets
+// Rankings: a class sheet (under the board) or every class at one position
 // ---------------------------------------------------------------------------
 
 const sumKey = (x, k) => x.seasons.reduce((s, r) => s + (r[k] || 0), 0);
@@ -162,26 +166,30 @@ const peakDom = (x) => {
   return v.length ? Math.max(...v) : null;
 };
 
-const OVERVIEW_COLS = [
-  { key: "posRank", label: "Pos", get: (x) => x.posRank, show: (x) => <b style={{ color: `var(--${x.pos.toLowerCase()})` }}>{x.pos}{x.posRank}</b>, asc: true },
-  { key: "tier", label: "Tier", get: (x) => x.grade, show: (x) => <TierBadge tier={x.tier} small /> },
-  { key: "classTier", label: "Class Tier", get: (x) => x.classTier, show: (x) => x.classTier, asc: true },
-  { key: "z", label: "Z-Score", get: (x) => x.z, show: (x) => <b className="px-num">{x.z.toFixed(2)}</b> },
-  { key: "overall", label: "Overall", get: (x) => x.overall, show: (x) => x.overall.toFixed(1) },
-  { key: "grade", label: "Grade", get: (x) => x.grade, show: (x) => <span style={{ color: "var(--good)", fontWeight: 600 }}>{x.grade.toFixed(2)}</span> },
-  { key: "height", label: "Ht", get: (x) => x.height, show: (x) => heightLabel(x.height) },
-  { key: "weight", label: "Wt", get: (x) => x.weight, show: (x) => x.weight ?? "—" },
-  { key: "forty", label: "40", get: (x) => x.forty, show: (x) => (x.forty ? x.forty.toFixed(2) : "—"), asc: true },
-  { key: "draftAge", label: "Draft Age", get: (x) => x.draftAge, show: (x) => ageLabel(x, x.draftAge), asc: true },
-  { key: "predraft", label: "Pre-Draft", get: (x) => (isPast(x) ? x.pick : x.boardRank || UNRANKED_RANK), show: predraftLabel, asc: true },
-  { key: "hype", label: "Model vs Hype", get: (x) => x.hype.gap, show: (x) => <HypeBadge x={x} /> },
-  { key: "archetype", label: "Archetype", get: (x) => x.archetype, show: (x) => x.archetype },
-  { key: "build", label: "Build", get: (x) => x.build, show: (x) => x.build },
-];
-const PAST_COLS = [
-  { key: "pick", label: "NFL Pick", get: (x) => x.pick, show: pickLabel, asc: true },
-  { key: "outcome", label: "NFL Outcome", get: (x) => (isPast(x) ? -(x.outcome.best4 ?? 999) : null), show: (x) => (isPast(x) ? <OutcomeBadge x={x} /> : <span className="muted small">Not drafted yet</span>) },
-];
+const COL = {
+  pos: { key: "posRank", label: "Pos", get: (x) => x.posRank, show: (x) => <b style={{ color: `var(--${x.pos.toLowerCase()})` }}>{x.pos}{x.posRank}</b>, asc: true },
+  classRk: { key: "posRank", label: "Class Rk", get: (x) => x.posRank, show: (x) => x.posRank, asc: true },
+  tier: { key: "tier", label: "Tier", get: (x) => x.grade, show: (x) => <TierBadge tier={x.tier} small /> },
+  classTier: { key: "classTier", label: "Class Tier", get: (x) => x.classTier, show: (x) => x.classTier, asc: true },
+  z: { key: "z", label: "Z-Score", get: (x) => x.z, show: (x) => <b className="px-num px-green">{x.z.toFixed(2)}</b> },
+  overall: { key: "overall", label: "Overall", get: (x) => x.overall, show: (x) => <b className="px-num px-green">{x.overall.toFixed(1)}</b> },
+  grade: { key: "grade", label: "Grade", get: (x) => x.grade, show: (x) => <span className="px-green" style={{ fontWeight: 600 }}>{x.grade.toFixed(2)}</span> },
+  type: { key: "build", label: "Type", get: (x) => x.build, show: (x) => x.build },
+  archetype: { key: "archetype", label: "Archetype", get: (x) => x.archetype, show: (x) => x.archetype },
+  height: { key: "height", label: "Ht", get: (x) => x.height, show: (x) => heightLabel(x.height) },
+  weight: { key: "weight", label: "Wt", get: (x) => x.weight, show: (x) => x.weight ?? "—" },
+  forty: { key: "forty", label: "40", get: (x) => x.forty, show: (x) => (x.forty ? x.forty.toFixed(2) : "—"), asc: true },
+  draftAge: { key: "draftAge", label: "Draft Age", get: (x) => x.draftAge, show: (x) => ageLabel(x, x.draftAge), asc: true },
+  predraft: { key: "predraft", label: "Pre-Draft", get: (x) => (isPast(x) ? x.pick : x.boardRank || UNRANKED_RANK), show: predraftLabel, asc: true },
+  hype: { key: "hype", label: "Model vs Hype", get: (x) => x.hype.gap, show: (x) => <HypeBadge x={x} /> },
+  pick: { key: "pick", label: "NFL Pick", get: (x) => x.pick, show: pickLabel, asc: true },
+  outcome: { key: "outcome", label: "NFL Outcome", get: (x) => (isPast(x) ? -(x.outcome.best4 ?? 999) : null), show: (x) => (isPast(x) ? <OutcomeBadge x={x} /> : <span className="muted small">Not drafted yet</span>) },
+};
+// Class sheet: rookie-draft order for one class.
+const SHEET_COLS = [COL.pos, COL.tier, COL.classTier, COL.z, COL.overall, COL.grade, COL.height, COL.weight, COL.forty, COL.draftAge, COL.predraft, COL.hype, COL.archetype, COL.type];
+// Position rankings: every class at one position, by grade.
+const RANK_COLS = [COL.classRk, COL.tier, COL.overall, COL.grade, COL.type, COL.archetype, COL.height, COL.weight, COL.forty, COL.draftAge, COL.predraft, COL.pick, COL.outcome];
+
 const PRODUCTION_COLS = [
   { key: "dom", label: "Peak Dom", get: peakDom, show: (x) => (peakDom(x) == null ? "—" : `${(peakDom(x) * 100).toFixed(1)}%`) },
   { key: "passYds", label: "Pass Yds", get: (x) => sumKey(x, "passYds"), show: (x) => fmt(sumKey(x, "passYds")) },
@@ -194,28 +202,33 @@ const PRODUCTION_COLS = [
   { key: "recTd", label: "Rec TD", get: (x) => sumKey(x, "recTd"), show: (x) => sumKey(x, "recTd") },
   { key: "seasons", label: "Seasons", get: (x) => x.seasons.length, show: (x) => x.seasons.length },
 ];
-function inputCols(pos) {
-  const base = [
-    { key: "grade", label: "Grade", get: (x) => x.grade, show: (x) => x.grade.toFixed(2) },
-    { key: "predraftScore", label: "Pre-Draft Score", get: (x) => x.predraft, show: (x) => x.predraft.toFixed(2) },
-    { key: "capitalBoost", label: "DC Boost", get: (x) => x.capitalBoost, show: (x) => `+${x.capitalBoost.toFixed(2)}` },
-    { key: "profile", label: "Production", get: (x) => x.profile, show: (x) => x.profile.toFixed(2) },
-  ];
+// The 0-10 input grades for one position (or breakout/draft age when positions are mixed).
+function metricCols(pos) {
   if (pos === "ALL") {
-    return [...base,
+    return [
       { key: "breakoutAge", label: "Breakout Age", get: (x) => x.breakoutAge, show: (x) => (x.breakoutAge ? ageLabel(x, x.breakoutAge) : "—"), asc: true },
-      { key: "draftAge", label: "Draft Age", get: (x) => x.draftAge, show: (x) => ageLabel(x, x.draftAge), asc: true },
+      COL.draftAge,
     ];
   }
-  return [...base, ...METRICS[pos].map((m) => ({
+  return METRICS[pos].map((m) => ({
     key: m.key, label: m.label,
     get: (x) => x.grades[m.key],
     show: (x) => {
       const mm = x.metrics.find((y) => y.key === m.key);
-      return mm.grade == null ? "—" : <span title={mm.fmt(mm.value)} style={{ color: gradeTone(mm.grade), fontWeight: 600 }}>{mm.grade.toFixed(1)}</span>;
+      return mm.grade == null ? "—" : (
+        <span title={mm.fmt(mm.value)} style={{ color: gradeTone(mm.grade), fontWeight: 600 }}>{Math.round(mm.grade)} <small>{letter(mm.grade)}</small></span>
+      );
     },
-  }))];
+  }));
 }
+const INPUT_COLS = [
+  COL.grade,
+  { key: "predraftScore", label: "Pre-Draft Score", get: (x) => x.predraft, show: (x) => x.predraft.toFixed(2) },
+  { key: "capitalBoost", label: "DC Boost", get: (x) => x.capitalBoost, show: (x) => `+${x.capitalBoost.toFixed(2)}` },
+  { key: "profile", label: "Production", get: (x) => x.profile, show: (x) => x.profile.toFixed(2) },
+  { key: "capital", label: "Draft Capital", get: (x) => x.capital, show: (x) => x.capital.toFixed(1) },
+  COL.predraft,
+];
 
 function Select({ value, onChange, all, options }) {
   return (
@@ -226,8 +239,9 @@ function Select({ value, onChange, all, options }) {
   );
 }
 
-// Every graded prospect from every class; a single class can be picked from the Class filter.
-export function RankingsView({ list, pos, onOpen }) {
+// `single`: one class's sheet in rookie-draft order (Pick column, no class controls).
+// Otherwise: every class at one position, ranked by grade, with a fixed RK that survives filters.
+export function RankingsView({ list, pos, onOpen, single }) {
   const [q, setQ] = useState("");
   const [cls, setCls] = useState("");
   const [tier, setTier] = useState("");
@@ -235,13 +249,19 @@ export function RankingsView({ list, pos, onOpen }) {
   const [build, setBuild] = useState("");
   const [round, setRound] = useState("");
   const [cols, setCols] = useState("overview");
-  // One position across classes ranks by grade; mixed positions need z-score to be comparable.
-  const [sort, setSort] = useState({ key: pos === "ALL" ? "z" : "grade", asc: false });
+  const [sort, setSort] = useState({ key: single || pos === "ALL" ? "z" : "grade", asc: false });
 
-  const columns = useMemo(
-    () => (cols === "overview" ? [...OVERVIEW_COLS, ...PAST_COLS] : cols === "production" ? PRODUCTION_COLS : inputCols(pos)),
-    [cols, pos],
-  );
+  const columns = useMemo(() => {
+    if (cols === "production") return PRODUCTION_COLS;
+    if (cols === "metrics") return metricCols(pos);
+    if (cols === "inputs") return INPUT_COLS;
+    return single ? SHEET_COLS : RANK_COLS;
+  }, [cols, pos, single]);
+  const fixedRank = useMemo(() => {
+    const m = {};
+    [...list].sort((a, b) => (pos === "ALL" ? b.z - a.z : b.grade - a.grade)).forEach((x, i) => (m[x.id] = i + 1));
+    return m;
+  }, [list, pos]);
   const options = (f) => [...new Set(list.map(f))].sort();
   const classes = [...new Set(list.map((x) => x.draftYear))].sort((a, b) => b - a);
   const roundOptions = [...[1, 2, 3, 4, 5, 6, 7].map((r) => `Round ${r}`), ...ROUND_BUCKETS.map((r) => ROUND_LABELS[r]), "Unranked"];
@@ -252,7 +272,7 @@ export function RankingsView({ list, pos, onOpen }) {
       (!cls || x.draftYear === Number(cls)) &&
       (!tier || x.tier.key === tier) && (!arch || x.archetype === arch) && (!build || x.build === build) &&
       (!round || roundLabel(x) === round));
-    const col = columns.find((c) => c.key === sort.key);
+    const col = [...columns, COL.z, COL.grade].find((c) => c.key === sort.key);
     if (!col) return out;
     const dir = sort.asc ? 1 : -1;
     return [...out].sort((a, b) => {
@@ -263,60 +283,58 @@ export function RankingsView({ list, pos, onOpen }) {
       if (bv == null) return -1;
       return (av > bv ? 1 : av < bv ? -1 : 0) * dir || b.z - a.z;
     });
-  }, [list, q, tier, arch, build, round, sort, columns]);
+  }, [list, q, cls, tier, arch, build, round, sort, columns]);
 
   const clickSort = (c) => setSort((s) => (s.key === c.key ? { key: c.key, asc: !s.asc } : { key: c.key, asc: !!c.asc }));
   const filtered = q || cls || tier || arch || build || round;
   const clear = () => [setQ, setCls, setTier, setArch, setBuild, setRound].forEach((f) => f(""));
 
   return (
-    <div className="card" style={{ padding: "0.9rem 1rem" }}>
+    <div className="px-rankings">
       <div className="px-filters">
         <input className="input" placeholder="Filter by name or school" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select value={cls} onChange={setCls} all="All classes" options={classes.map(String)} />
+        {!single && <Select value={cls} onChange={setCls} all="All classes" options={classes.map(String)} />}
         <Select value={tier} onChange={setTier} all="All tiers" options={PROSPECT_TIERS.map((t) => t.key).filter((t) => list.some((x) => x.tier.key === t))} />
+        <Select value={build} onChange={setBuild} all="All types" options={options((x) => x.build)} />
         <Select value={arch} onChange={setArch} all="All archetypes" options={options((x) => x.archetype)} />
-        <Select value={build} onChange={setBuild} all="All builds" options={options((x) => x.build)} />
         <Select value={round} onChange={setRound} all="All rounds" options={roundOptions.filter((r) => list.some((x) => roundLabel(x) === r))} />
-        {filtered && <button className="btn" onClick={clear}>Clear</button>}
+        {filtered && <button className="px-pill" onClick={clear}>Clear</button>}
       </div>
       <div className="px-filters" style={{ justifyContent: "space-between" }}>
-        <div className="seg">
-          {[["overview", "Overview"], ["production", "Production"], ["inputs", "Model inputs"]].map(([k, l]) => (
+        <div className="px-viewtabs">
+          {[["overview", "Overview"], ["production", "Production"], ["metrics", "Metrics"], ["inputs", "Model inputs"]].map(([k, l]) => (
             <button key={k} className={cols === k ? "on" : ""} onClick={() => setCols(k)}>{l}</button>
           ))}
         </div>
-        <span className="muted small">{rows.length} prospects{cols === "production" ? " · college career totals" : ""}</span>
+        <span className="muted small">{rows.length} players{cols === "production" ? " · college career totals" : ""}{single ? " · class sheet order (Z-score)" : ""}</span>
       </div>
-      <div className="table-wrap">
+      <div className="table-wrap px-table">
         <table className="t">
           <thead>
             <tr>
-              <th className="rnk">Rk</th>
+              <th className="rnk">{single ? "Pick" : "Rk"}</th>
               <th>Player</th>
               <th>School</th>
-              <th className="c">Class</th>
-              <th className="c">Slot</th>
+              {!single && <th className="c">Class</th>}
               {columns.map((c) => (
                 <th key={c.key} className={`c sortable${sort.key === c.key ? " sorted" : ""}`} onClick={() => clickSort(c)}>
-                  {c.label} {sort.key === c.key ? (sort.asc ? "↑" : "↓") : "↕"}
+                  {c.label} {sort.key === c.key ? (sort.asc ? "↑" : "↓") : ""}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map((x, i) => (
+            {rows.map((x) => (
               <tr key={x.id} className="px-row" style={{ "--t": x.tier.color }} onClick={() => onOpen(x.id)}>
-                <td className="rnk">{i + 1}</td>
+                <td className="rnk"><b className="px-rk">{single ? x.slot : fixedRank[x.id]}</b></td>
                 <td>
                   <button className="plink pcell" onClick={() => onOpen(x.id)} title={`Open ${x.name}`}>
-                    <Monogram x={x} size={34} />
-                    <span className="pname">{x.name}</span>
+                    <span className="px-rk-photo" style={{ "--t": x.tier.color }}><Monogram x={x} size={56} /></span>
+                    <span className="pname px-rk-name">{x.name}</span>
                   </button>
                 </td>
                 <td><span className="px-school"><i style={{ background: x.color }} />{x.school}</span></td>
-                <td className="c">{x.draftYear} · {x.classShort}</td>
-                <td className="c"><b className="px-num">{x.slot}</b></td>
+                {!single && <td className="c">{x.draftYear}</td>}
                 {columns.map((c) => <td key={c.key} className="c">{c.show(x)}</td>)}
               </tr>
             ))}
@@ -332,56 +350,150 @@ export function RankingsView({ list, pos, onOpen }) {
 // Report card
 // ---------------------------------------------------------------------------
 
-function RateBars({ pos, h }) {
-  return [["top12", 1], ["top24", 2], ["top36", 3]].map(([k, n]) => (
-    <div key={k} className="px-hit">
-      <span>{pos}{n}</span>
-      <span className="px-bar"><i style={{ width: `${h[k]}%`, background: rateColor(h[k]) }} /></span>
-      <b>{h[k]}%</b>
-    </div>
-  ));
+const schoolAbbr = (school) => (school || "").split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase();
+
+function SchoolChip({ x, size = 44 }) {
+  return (
+    <span className="px-school-chip" style={{ "--s": x.color, width: size, height: size, fontSize: size * 0.32 }} title={x.school}>
+      {schoolAbbr(x.school)}
+    </span>
+  );
 }
 
-function HitRatePanel({ x, hitRates, tierHits }) {
-  const bucket = x.round || "R6-7";
-  const byRound = hitRates[x.pos]?.[bucket];
-  const byTier = tierHits[x.pos]?.[x.tier.key];
-  const [mode, setMode] = useState("tier");
-  const h = mode === "tier" ? byTier : byRound;
+// Left-hand player card: tier, position rank, photo (or initials) and name.
+function IdCard({ x }) {
+  const [broken, setBroken] = useState(false);
+  const [first, ...rest] = x.name.split(" ");
   return (
-    <div className="card px-panel">
-      <div className="px-panel-head">
-        <h3>Hit Rate</h3>
-        <div className="seg">
-          <button className={mode === "tier" ? "on" : ""} onClick={() => setMode("tier")}>{x.tier.key} tier</button>
-          <button className={mode === "round" ? "on" : ""} onClick={() => setMode("round")}>{ROUND_LABELS[bucket]}</button>
-        </div>
+    <div className="px-idcard" style={{ "--s": x.color }}>
+      <div className="px-idcard-top">
+        <TierBadge tier={x.tier} />
+        <span className="px-posbadge">{x.pos}{x.posRank}</span>
       </div>
-      <p className="muted small" style={{ marginTop: 0 }}>
-        {mode === "tier"
-          ? `Past ${x.pos}s our model put in the ${x.tier.key} tier (drafted 2018–2022)`
-          : `${x.pos}s drafted in ${ROUND_LABELS[bucket]}, 2012–2021${x.round ? "" : " (closest match for an unranked prospect)"}`}
-        {h ? ` · ${h.n} players` : ""}. Share with a top-12 / 24 / 36 PPR season in their first four years.
-      </p>
-      {h ? <RateBars pos={x.pos} h={h} /> : <div className="empty">No past {x.pos}s in this {mode === "tier" ? "tier" : "round"} yet.</div>}
-      {h && h.n < 5 && <p className="muted small">Fewer than 5 players: treat this as an anecdote, not a rate.</p>}
-      <div className="px-mini" style={{ marginTop: "0.8rem" }}>
-        <div><small>Pre-draft score</small><b>{x.predraft.toFixed(2)}</b></div>
-        <div><small>Pre-draft grade</small><b>{predraftLabel(x)}</b></div>
-        <div><small>Draft capital boost</small><b>+{x.capitalBoost.toFixed(2)}</b></div>
+      <div className="px-idcard-photo">
+        <span className="px-idcard-school">{schoolAbbr(x.school)}</span>
+        {x.img && !broken ? <img src={x.img} alt={x.name} onError={() => setBroken(true)} /> : <span className="px-idcard-mono">{initials(x.name)}</span>}
       </div>
-      {isPast(x) && (
-        <div className="px-mini" style={{ marginTop: "0.8rem" }}>
-          <div><small>NFL outcome</small><b><OutcomeBadge x={x} /></b></div>
-          <div><small>Best career finish</small><b>{x.outcome.best ? `${x.pos}${x.outcome.best}` : "—"}</b></div>
-          <div><small>Top-24 seasons</small><b>{x.outcome.top24} of {x.outcome.seasons}</b></div>
-        </div>
-      )}
+      <div className="px-idcard-name">
+        <span>{first}</span>
+        <b>{rest.join(" ")}</b>
+      </div>
     </div>
   );
 }
 
-function HypePanel({ x }) {
+function bigRate(p) {
+  return (
+    <span className="px-bigrate">
+      <b style={{ color: rateColor(p) }}>{p}%</b>
+      <span className="px-bar"><i style={{ width: `${p}%`, background: rateColor(p) }} /></span>
+    </span>
+  );
+}
+
+// How past prospects like this one turned out: by our tier (default) or by draft round.
+function TierHitPanel({ x, hitRates, tierHits }) {
+  const bucket = x.round || "R6-7";
+  const [mode, setMode] = useState("tier");
+  const h = mode === "tier" ? tierHits[x.pos]?.[x.tier.key] : hitRates[x.pos]?.[bucket];
+  return (
+    <div className="card px-panel">
+      <div className="px-panel-head">
+        <h3>{mode === "tier" ? `${x.tier.key} hit rate` : `${ROUND_LABELS[bucket]} hit rate`}</h3>
+        <span>{h ? `${h.n} players` : ""}</span>
+      </div>
+      <div className="px-hitwrap">
+        <div>
+          {h ? (
+            <div className="px-bigrates">
+              {[["top12", 1], ["top24", 2], ["top36", 3]].map(([k, n]) => (
+                <div key={k}><small>{x.pos}{n}</small>{bigRate(h[k])}</div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty">No past {x.pos}s in this {mode === "tier" ? "tier" : "round"} yet.</div>
+          )}
+          <p className="muted small" style={{ margin: "0.6rem 0 0" }}>
+            {mode === "tier" ? `${x.pos}s drafted 2018–2022 that our model put in the ${x.tier.key} tier` : `${x.pos}s drafted in ${ROUND_LABELS[bucket]}, 2012–2021`}: share with a top-12 / 24 / 36 PPR season in their first four years.
+            {h && h.n < 5 ? " Fewer than 5 players, so treat it as an anecdote." : ""}
+          </p>
+          <div className="seg" style={{ marginTop: "0.6rem" }}>
+            <button className={mode === "tier" ? "on" : ""} onClick={() => setMode("tier")}>By tier</button>
+            <button className={mode === "round" ? "on" : ""} onClick={() => setMode("round")}>By {isPast(x) ? "draft" : "projected"} round</button>
+          </div>
+        </div>
+        <div className="px-predraft">
+          <div><small>Pre-draft score</small><b>{x.predraft.toFixed(2)}</b></div>
+          <div><small>Pre-draft grade</small><b>{predraftLabel(x).toUpperCase()}</b></div>
+          {isPast(x) && <div><small>NFL outcome</small><b><OutcomeBadge x={x} /></b></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Tier × draft round grid for the player's position, with his own cell highlighted.
+function TierRoundPanel({ x, history }) {
+  const [finish, setFinish] = useState(24);
+  const grid = useMemo(() => tierRoundGrid(history, x.pos, finish), [history, x.pos, finish]);
+  const mix = useMemo(() => outcomeMix(history, x.pos), [history, x.pos]);
+  const myRound = isPast(x) ? x.draftRound : null;
+  return (
+    <div className="card px-panel">
+      <div className="px-panel-head">
+        <h3>{x.pos} hit rates by tier and draft round</h3>
+        <div className="seg">
+          {[12, 24, 36].map((n) => (
+            <button key={n} className={finish === n ? "on" : ""} onClick={() => setFinish(n)}>Top {n}</button>
+          ))}
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table className="t px-grid">
+          <thead>
+            <tr><th>Tier</th>{[1, 2, 3, 4, 5, 6, 7].map((r) => <th key={r} className={`c${r === myRound ? " px-mine" : ""}`}>Rd {r}</th>)}<th>Outcome mix</th></tr>
+          </thead>
+          <tbody>
+            {PROSPECT_TIERS.map((t) => {
+              const m = mix[t.key];
+              return (
+                <tr key={t.key} className={t.key === x.tier.key ? "px-mine-row" : ""}>
+                  <td><TierBadge tier={t} small /></td>
+                  {[1, 2, 3, 4, 5, 6, 7].map((r) => {
+                    const c = grid[`${t.key}|${r}`];
+                    if (!c) return <td key={r} className="c muted">—</td>;
+                    const p = Math.round((c.hits / c.n) * 100);
+                    return (
+                      <td key={r} className="c">
+                        <span className={`px-cell${c.n < 3 ? " faded" : ""}${t.key === x.tier.key && r === myRound ? " mine" : ""}`} style={{ "--o": rateColor(p) }}>
+                          <b>{p}%</b><small>{c.hits} of {c.n}</small>
+                        </span>
+                      </td>
+                    );
+                  })}
+                  <td style={{ minWidth: 140 }}>
+                    {m ? (
+                      <span className="px-stack" title={OUTCOMES.map((o) => `${o.label}: ${m[o.key]}`).join(" · ")}>
+                        {OUTCOMES.map((o) => (m[o.key] ? <i key={o.key} style={{ width: `${(m[o.key] / m.n) * 100}%`, background: o.color }} /> : null))}
+                      </span>
+                    ) : <span className="muted">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-legend" style={{ marginTop: "0.6rem" }}>{OUTCOMES.map((o) => <span key={o.key}><i style={{ background: o.color }} />{o.label}</span>)}</div>
+      <p className="muted small">
+        {x.pos}s drafted 2018–2022 with a top-{finish} season in their first four years, by our tier and the round they were drafted in. His tier is highlighted{myRound ? ", and his round" : ""}. Faded cells have fewer than 3 players: anecdotes, not rates.
+      </p>
+    </div>
+  );
+}
+
+function HypePanel({ x, hypeCard }) {
+  const a = hypeCard[x.pos]?.[x.hype.key];
   const msg = {
     model: `His production profile (${x.profile.toFixed(2)}) grades well above his ${isPast(x) ? "draft slot" : "big-board"} capital (${x.capital.toFixed(1)}). The model likes him more than the market does.`,
     hype: `His ${isPast(x) ? "draft slot" : "big-board"} capital (${x.capital.toFixed(1)}) is well ahead of his production profile (${x.profile.toFixed(2)}). The market likes him more than the numbers do.`,
@@ -390,7 +502,84 @@ function HypePanel({ x }) {
   return (
     <div className="px-hype">
       <HypeBadge x={x} />
-      <span className="small">{msg}</span>
+      <span className="small">
+        {msg}
+        {a ? ` Past ${x.pos}s with the same call had a top-24 season ${Math.round((a.hits / a.n) * 100)}% of the time (${a.hits} of ${a.n}).` : ""}
+      </span>
+    </div>
+  );
+}
+
+// Side-by-side comparison, opened from a VS button.
+function HeadToHead({ x, y, tierHits, onClose }) {
+  const ty = (p) => tierHits[p.pos]?.[p.tier.key];
+  const row = (label, a, b, better) => ({ label, a, b, better });
+  const num = (p, k) => p[k];
+  const rows = [
+    row("Overall", x.overall.toFixed(1), y.overall.toFixed(1), Math.sign(x.overall - y.overall)),
+    row(`${x.pos} Grade`, x.grade.toFixed(2), y.grade.toFixed(2), Math.sign(x.grade - y.grade)),
+    row("Class", x.draftYear, y.draftYear, 0),
+    row("Build", x.build, y.build, 0),
+    row("Archetype", x.archetype, y.archetype, 0),
+    row("Height", heightLabel(x.height), heightLabel(y.height), 0),
+    row("Weight", x.weight ? `${x.weight} lb` : "—", y.weight ? `${y.weight} lb` : "—", 0),
+    row("40 Time", x.forty ? x.forty.toFixed(2) : "—", y.forty ? y.forty.toFixed(2) : "—", x.forty && y.forty ? Math.sign(y.forty - x.forty) : 0),
+    row("Draft Age", ageLabel(x, x.draftAge), ageLabel(y, y.draftAge), Math.sign(num(y, "draftAge") - num(x, "draftAge"))),
+    row("Draft Round", roundLabel(x), roundLabel(y), 0),
+    row("Pre-Draft Score", x.predraft.toFixed(2), y.predraft.toFixed(2), Math.sign(x.predraft - y.predraft)),
+    ...x.metrics.map((m) => {
+      const gb = y.grades[m.key];
+      const ga = m.grade;
+      const show = (g) => (g == null ? "—" : `${Math.round(g)} · ${letter(g)}`);
+      return row(m.label, show(ga), show(gb), ga != null && gb != null ? Math.sign(Math.round(ga) - Math.round(gb)) : 0);
+    }),
+    ...[["top12", 1], ["top24", 2], ["top36", 3]].map(([k, n]) => {
+      const a = ty(x)?.[k];
+      const b = ty(y)?.[k];
+      return row(`Tier ${x.pos}${n} rate`, a != null ? `${a}%` : "—", b != null ? `${b}%` : "—", a != null && b != null ? Math.sign(a - b) : 0);
+    }),
+  ];
+  const cls = (s, side) => (s === 0 ? "" : (side === "a" ? s > 0 : s < 0) ? " better" : " worse");
+  return (
+    <div className="card px-panel px-h2h">
+      <div className="px-panel-head">
+        <h3>Head to head</h3>
+        <button className="link" onClick={onClose}>Close ✕</button>
+      </div>
+      <div className="px-h2h-cards">
+        {[x, y].map((p, i) => (
+          <div key={p.id} className={`px-h2h-card${i ? " right" : ""}`} style={{ "--s": p.color }}>
+            <Monogram x={p} size={72} />
+            <div>
+              <small>{p.name.split(" ")[0]}</small>
+              <b>{p.name.split(" ").slice(1).join(" ")}</b>
+              <span>Overall {p.overall.toFixed(1)} · {p.pos} Grade {p.grade.toFixed(2)} · {p.draftYear} class</span>
+            </div>
+            <span className="px-h2h-tier" style={{ background: p.tier.color }}>{p.tier.label || p.tier.key}</span>
+          </div>
+        ))}
+        <span className="px-h2h-vs">VS</span>
+      </div>
+      <div className="px-h2h-body">
+        <div>
+          <div className="px-legend" style={{ justifyContent: "center" }}>
+            <span><i style={{ background: "var(--good)" }} />{x.name}</span>
+            <span><i style={{ background: "var(--text)" }} />{y.name}</span>
+          </div>
+          <Radar metrics={x.metrics} other={y} />
+        </div>
+        <table className="t px-h2h-table">
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label}>
+                <td className={`c${cls(r.better, "a")}`}>{r.a}</td>
+                <th className="c">{r.label}</th>
+                <td className={`c${cls(r.better, "b")}`}>{r.b}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -453,102 +642,108 @@ function CompRow({ y, d, vs, setVs, onOpen, sub }) {
   );
 }
 
-export function ReportCard({ x, classList, history, hitRates, tierHits, onOpen, onBack }) {
+
+export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard, onOpen, onBack }) {
   const [vs, setVs] = useState(null);
   const everyone = useMemo(() => [...classList, ...history], [classList, history]);
   const other = vs ? everyone.find((y) => y.id === vs) : null;
   const classComps = closestProfiles(x, classList);
   const pastComps = closestProfiles(x, history.filter((y) => y.draftYear !== x.draftYear), 6);
-  const [first, ...rest] = x.name.split(" ");
   const bio = [
     ["Class", x.classYear],
     ["Draft Age", ageLabel(x, x.draftAge)],
     ["Age Today", ageLabel(x, x.ageToday)],
     ["Height", heightLabel(x.height)],
     ["Weight", x.weight ? `${x.weight} lb` : "—"],
-    ["40 Time", x.forty ? x.forty.toFixed(2) : "—"],
     ["Build", x.build],
     ["Archetype", x.archetype],
     ["Breakout", x.breakoutSeason ? `${x.breakoutSeason} (age ${ageLabel(x, x.breakoutAge)})` : "None"],
-    [isPast(x) ? "Draft Round" : "Proj. Round", roundLabel(x)],
+    ["Rookie Slot", `${x.slot} · tier ${x.classTier}`],
+    ["40 Time", x.forty ? x.forty.toFixed(2) : "—"],
+    ["Draft Round", roundLabel(x)],
     ["Draft Pick", pickLabel(x)],
-    [isPast(x) ? "NFL Seasons" : "Big Board", isPast(x) ? x.outcome.seasons : x.boardRank ? `#${x.boardRank}` : "Unranked"],
   ];
+  // CompRow passes the next value (an id, or null to close).
+  const compare = (id) => {
+    setVs(id);
+    if (id) setTimeout(() => document.getElementById("px-h2h")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
 
   return (
     <div className="grid px-report">
       <button className="link px-back" onClick={onBack}>← {x.draftYear} board</button>
 
-      <div className="px-hero" style={{ "--s": x.color }}>
-        <div>
-          <span className="px-first">{first}</span>
-          <h2>{rest.join(" ")}</h2>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <TierBadge tier={x.tier} />
-            {isPast(x) && <OutcomeBadge x={x} />}
+      <div className="px-top">
+        <IdCard x={x} />
+        <div className="px-top-right">
+          <div className="px-strip" style={{ "--s": x.color }}>
+            <div className="px-strip-school">
+              <SchoolChip x={x} />
+              <span>
+                <b>{x.school}</b>
+                <small>{x.draftYear} · {x.classShort}</small>
+              </span>
+            </div>
+            <div className="hl"><small>Overall</small><b>{x.overall.toFixed(1)}</b></div>
+            <div><small>{x.pos} Grade</small><b>{x.grade.toFixed(2)}</b></div>
+            <div><small>Z-Score</small><b>{x.z.toFixed(2)}</b></div>
+            <div><small>Class Rank</small><b>{x.pos}{x.posRank}</b></div>
           </div>
+          <div className="px-bio" style={{ "--s": x.color }}>
+            {bio.map(([k, v]) => <div key={k}><small>{k}</small><b>{v}</b></div>)}
+          </div>
+          <HypePanel x={x} hypeCard={hypeCard} />
         </div>
-        <Monogram x={x} size={150} />
       </div>
-
-      <div className="px-strip" style={{ "--s": x.color }}>
-        <div className="px-strip-school">
-          <b>{x.school}</b>
-          <small>{x.draftYear} · {x.classShort}</small>
-        </div>
-        <div className="hl"><small>Overall</small><b>{x.overall.toFixed(1)}</b></div>
-        <div><small>{x.pos} Grade</small><b>{x.grade.toFixed(2)}</b></div>
-        <div><small>Z-Score</small><b>{x.z.toFixed(2)}</b></div>
-        <div><small>Class Rank</small><b>{x.pos}{x.posRank}</b></div>
-        <div><small>Class Tier</small><b>{x.classTier}</b></div>
-      </div>
-
-      <div className="px-bio" style={{ "--s": x.color }}>
-        {bio.map(([k, v]) => <div key={k}><small>{k}</small><b>{v}</b></div>)}
-      </div>
-
-      <HypePanel x={x} />
 
       <div className="px-two">
         <div className="card px-panel">
           <div className="px-panel-head">
             <h3>Grades</h3>
-            <span>{other ? `vs ${other.name} ${other.draftYear} (dashed)` : "Stat · grade · letter"}</span>
+            <span>Stat · grade · letter</span>
           </div>
           <div className="px-grades-wrap">
             <div className="px-grades">
               {x.metrics.map((m) => (
                 <div key={m.key} className="px-grade" title={m.note}>
                   <span>{m.label}</span>
-                  <GradeBar grade={m.grade} compare={other?.grades[m.key]} />
+                  <GradeBar grade={m.grade} />
                   <span className="muted small">{m.fmt(m.value)}</span>
                   <b>{m.grade == null ? "—" : Math.round(m.grade)}</b>
                   <em style={{ color: gradeTone(m.grade) }}>{m.grade == null ? "" : letter(m.grade)}</em>
                 </div>
               ))}
             </div>
-            <Radar metrics={x.metrics} other={other} />
+            <Radar metrics={x.metrics} />
           </div>
         </div>
-        <HitRatePanel x={x} hitRates={hitRates} tierHits={tierHits} />
+        <TierHitPanel x={x} hitRates={hitRates} tierHits={tierHits} />
       </div>
 
       <div className="px-two">
         <div className="card px-panel">
-          <div className="px-panel-head"><h3>Historical Comps</h3><span>Closest past {x.pos} profiles · how they turned out</span></div>
+          <div className="px-panel-head"><h3>Historical Comps</h3><span>Closest past {x.pos} grade profiles · select VS to compare</span></div>
           {pastComps.length === 0 && <div className="empty">No past {x.pos}s with enough data to compare.</div>}
           {pastComps.map(({ y, d }) => (
-            <CompRow key={y.id} y={y} d={d} vs={vs} setVs={setVs} onOpen={onOpen} sub={`${y.school} · pick ${y.pick}`} />
+            <CompRow key={y.id} y={y} d={d} vs={vs} setVs={compare} onOpen={onOpen} sub={`${y.school} · pick ${y.pick}`} />
           ))}
         </div>
         <div className="card px-panel">
           <div className="px-panel-head"><h3>Closest in Class</h3><span>{x.draftYear} {x.pos}s · select VS to compare</span></div>
           {classComps.length === 0 && <div className="empty">No other {x.pos}s in this class.</div>}
           {classComps.map(({ y, d }) => (
-            <CompRow key={y.id} y={y} d={d} vs={vs} setVs={setVs} onOpen={onOpen} sub={`${y.school} · ${y.archetype}`} />
+            <CompRow key={y.id} y={y} d={d} vs={vs} setVs={compare} onOpen={onOpen} sub={`${y.school} · ${y.archetype}`} />
           ))}
         </div>
       </div>
+
+      {other && (
+        <div id="px-h2h">
+          <HeadToHead x={x} y={other} tierHits={tierHits} onClose={() => setVs(null)} />
+        </div>
+      )}
+
+      <TierRoundPanel x={x} history={history} />
 
       <SeasonTable x={x} />
 
@@ -562,146 +757,6 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, onOpen, 
           <li>{x.pos} grade = {gradeFormula(x.pos)}. Production is the weighted average of the 0–10 input grades; draft capital is 0–10 from {isPast(x) ? "the actual pick" : "the big-board rank"}.</li>
         </ul>
       </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Hit rates: tier × round grid, outcome mix, model vs hype, round table
-// ---------------------------------------------------------------------------
-
-export function HitRatesView({ history, hitRates, hypeCard, pos }) {
-  const [finish, setFinish] = useState(24);
-  const P = pos === "ALL" ? "" : pos;
-  const grid = useMemo(() => tierRoundGrid(history, pos, finish), [history, pos, finish]);
-  const mix = useMemo(() => outcomeMix(history, pos), [history, pos]);
-  const tiers = PROSPECT_TIERS.filter((t) => mix[t.key]);
-  const positions = pos === "ALL" ? Object.keys(METRICS) : [pos];
-
-  return (
-    <div className="grid">
-      <div className="card">
-        <div className="card-title">
-          <h3>By tier and draft round{P ? ` · ${P}s` : ""}</h3>
-          <div className="seg">
-            {[12, 24, 36].map((n) => (
-              <button key={n} className={finish === n ? "on" : ""} onClick={() => setFinish(n)}>Top {n}</button>
-            ))}
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table className="t px-grid">
-            <thead>
-              <tr><th>Tier</th>{[1, 2, 3, 4, 5, 6, 7].map((r) => <th key={r} className="c">Rd {r}</th>)}</tr>
-            </thead>
-            <tbody>
-              {PROSPECT_TIERS.map((t) => (
-                <tr key={t.key}>
-                  <td><TierBadge tier={t} small /></td>
-                  {[1, 2, 3, 4, 5, 6, 7].map((r) => {
-                    const c = grid[`${t.key}|${r}`];
-                    if (!c) return <td key={r} className="c muted">—</td>;
-                    const p = Math.round((c.hits / c.n) * 100);
-                    return (
-                      <td key={r} className="c">
-                        <span className={`px-cell${c.n < 3 ? " faded" : ""}`} style={{ "--o": rateColor(p) }}>
-                          <b>{p}%</b><small>{c.hits} of {c.n}</small>
-                        </span>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="muted small" style={{ marginBottom: 0 }}>
-          Share of past prospects (drafted 2018–2022) with a top-{finish} {P || "positional"} season in their first four years, by our tier and the round they were actually drafted in.
-          Faded cells have fewer than 3 players: anecdotes, not rates.
-        </p>
-      </div>
-
-      <div className="card">
-        <div className="card-title">
-          <h3>Outcome by tier</h3>
-          <div className="px-legend">{OUTCOMES.map((o) => <span key={o.key}><i style={{ background: o.color }} />{o.label}</span>)}</div>
-        </div>
-        {tiers.map((t) => {
-          const m = mix[t.key];
-          return (
-            <div key={t.key} className="px-mix">
-              <TierBadge tier={t} small />
-              <span className="muted small">{m.n}</span>
-              <span className="px-stack">
-                {OUTCOMES.map((o) => (m[o.key] ? <i key={o.key} style={{ width: `${(m[o.key] / m.n) * 100}%`, background: o.color }} title={`${o.label}: ${m[o.key]} of ${m.n}`} /> : null))}
-              </span>
-              {OUTCOMES.map((o) => <span key={o.key} className="px-mix-pct">{Math.round((m[o.key] / m.n) * 100)}%</span>)}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="card">
-        <div className="card-title"><h3>Model vs hype: who was right?</h3><span className="muted small">Top-24 rate, drafted 2018–2022</span></div>
-        <div className="table-wrap">
-          <table className="t">
-            <thead><tr><th>Position</th><th className="c">Model &gt; hype</th><th className="c">Aligned</th><th className="c">Hype &gt; model</th></tr></thead>
-            <tbody>
-              {positions.map((Q) => (
-                <tr key={Q}>
-                  <td><b>{Q}</b></td>
-                  {["model", "aligned", "hype"].map((k) => {
-                    const a = hypeCard[Q]?.[k];
-                    if (!a) return <td key={k} className="c muted">—</td>;
-                    const p = Math.round((a.hits / a.n) * 100);
-                    return <td key={k} className="c"><b style={{ color: rateColor(p) }}>{p}%</b> <span className="muted small">{a.hits} of {a.n}</span></td>;
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="muted small" style={{ marginBottom: 0 }}>
-          "Model &gt; hype" means the production grade was at least {HYPE_GAP} points above the draft-slot grade. Read across a row to see whether the numbers or the draft room called it better.
-        </p>
-      </div>
-
-      {positions.map((Q) => (
-        <div key={Q} className="card">
-          <div className="card-title"><h3>{Q} hit rates by draft round</h3><span className="muted small">Drafted 2012–2021 · first four NFL seasons</span></div>
-          <div className="table-wrap">
-            <table className="t">
-              <thead>
-                <tr><th>Round</th><th className="c">Players</th>{[1, 2, 3].map((n) => <th key={n}>{Q}{n} (top {n * 12})</th>)}</tr>
-              </thead>
-              <tbody>
-                {ROUND_BUCKETS.map((r) => {
-                  const h = hitRates[Q]?.[r];
-                  if (!h) return null;
-                  return (
-                    <tr key={r}>
-                      <td><b>{ROUND_LABELS[r]}</b></td>
-                      <td className="c">{h.n}</td>
-                      {["top12", "top24", "top36"].map((k) => (
-                        <td key={k}>
-                          <div className="px-hit compact">
-                            <span className="px-bar"><i style={{ width: `${h[k]}%`, background: rateColor(h[k]) }} /></span>
-                            <b>{h[k]}%</b>
-                          </div>
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
-      <p className="muted small" style={{ margin: 0 }}>
-        A hit is at least one season finishing top 12 / 24 / 36 at the position in full-PPR points, counted over the draft year and the three seasons after it.
-        NFL data from nflverse (CC BY 4.0). Small samples, especially first-round TEs and second-round QBs, swing a lot.
-      </p>
     </div>
   );
 }
