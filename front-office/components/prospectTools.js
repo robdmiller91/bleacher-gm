@@ -67,17 +67,20 @@ function Widget({ w, everyone, tierHits, onOpen }) {
   return null;
 }
 
-// Answers can link players as [Name](#p:ID); render those as buttons, plus **bold** and "- " lists.
-function RichText({ text, onOpen }) {
+// Answers link prospects as [Name](#p:ID) and league players as [Name](#l:ID); render those as buttons,
+// plus **bold** and "- " lists.
+function RichText({ text, onOpen, onOpenLeague }) {
   const inline = (line, key) => {
     const parts = [];
-    const re = /\[([^\]]+)\]\(#p:([^)]+)\)|\*\*([^*]+)\*\*/g;
+    const re = /\[([^\]]+)\]\(#([pl]):([^)]+)\)|\*\*([^*]+)\*\*/g;
     let last = 0;
     let m;
     while ((m = re.exec(line))) {
       if (m.index > last) parts.push(line.slice(last, m.index));
-      if (m[1]) parts.push(<button key={`${key}-${m.index}`} className="px-plink" onClick={() => onOpen(m[2])}>{m[1]}</button>);
-      else parts.push(<b key={`${key}-${m.index}`}>{m[3]}</b>);
+      if (m[1]) {
+        const open = m[2] === "l" ? onOpenLeague : onOpen;
+        parts.push(<button key={`${key}-${m.index}`} className="px-plink" onClick={() => open?.(m[3])}>{m[1]}</button>);
+      } else parts.push(<b key={`${key}-${m.index}`}>{m[4]}</b>);
       last = m.index + m[0].length;
     }
     if (last < line.length) parts.push(line.slice(last));
@@ -145,6 +148,10 @@ function localAnswer(question, everyone) {
 // The dock
 // ---------------------------------------------------------------------------
 
+const LEAGUE_SUGGESTIONS = [
+  "Is it worth tanking this year to get a better pick next year?",
+  "Which position group should I upgrade, and who could I trade with?",
+];
 const SUGGESTIONS = [
   `Which ${PROSPECT_CLASS} WRs look most like Ja'Marr Chase?`,
   "Compare Jeremiah Smith and Marvin Harrison Jr.",
@@ -153,8 +160,9 @@ const SUGGESTIONS = [
 ];
 const SIZES = [["third", "⅓"], ["half", "½"], ["full", "Full"]];
 
-// A chat panel docked to the bottom of the prospect pages. Closed, it's an "Ask" button.
-export function ChatDock({ everyone, tierHits, onOpen, size, onSize }) {
+// A chat panel docked to the bottom of every page. Closed, it's an "Ask the model" button.
+// `context` carries the connected Sleeper league and user, so league questions can be answered.
+export function ChatDock({ everyone, tierHits, onOpen, onOpenLeague, context, size, onSize }) {
   const [thread, setThread] = useState([]);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -187,14 +195,14 @@ export function ChatDock({ everyone, tierHits, onOpen, size, onSize }) {
         const res = await fetch("/api/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: text, history }),
+          body: JSON.stringify({ question: text, history, league: context?.league, user: context?.user }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.answer) return reply({ text: data.answer, widgets: data.widgets || [] });
         if (data.error !== "not_configured") return reply({ text: data.error || "Something went wrong. Try again.", error: true });
         setAiOff(true);
       }
-      const local = localAnswer(text, everyone);
+      const local = everyone.length ? localAnswer(text, everyone) : null;
       if (local) reply(local);
       else reply({ text: "I can't answer free-form questions until the AI assistant is switched on (see the note below). Right now I can compare players (\"compare A and B\"), find comps (\"players like X\"), list the top players at a position, or pull up a player by name.", error: true });
     } catch {
@@ -217,7 +225,7 @@ export function ChatDock({ everyone, tierHits, onOpen, size, onSize }) {
       <header className="px-dock-head">
         <span className="px-dock-dot" />
         <b>Ask the model</b>
-        <span className="muted small">· questions, comparisons and comps, from the BGM Prospect Score data{aiOff ? "" : ", via Claude"}</span>
+        <span className="muted small">· your league, trades, picks, prospects, comparisons and comps{aiOff ? "" : ", via Claude"}</span>
         <span className="px-dock-actions">
           <span className="px-seg">
             {SIZES.map(([k, l]) => <button key={k} className={size === k ? "on" : ""} onClick={() => onSize(k)}>{l}</button>)}
@@ -229,15 +237,17 @@ export function ChatDock({ everyone, tierHits, onOpen, size, onSize }) {
       <div className="px-dock-body" ref={bodyRef}>
         {thread.length === 0 && (
           <>
-            <p className="px-dock-intro">Ask anything about the prospects: compare two players, find {PROSPECT_CLASS} prospects who profile like someone you know, or check how a tier has hit. Answers come only from the site's data. Try one of these:</p>
+            <p className="px-dock-intro">
+              Ask anything about {context?.league ? "your league (standings, rosters, trades, draft picks, strategy) or " : ""}the prospects: compare two players, find {PROSPECT_CLASS} prospects who profile like someone you know, or check how a tier has hit. Answers come only from the site's data. Try one of these:
+            </p>
             <div className="px-examples">
-              {SUGGESTIONS.map((s) => <button key={s} className="px-chip" onClick={() => ask(s)}>{s}</button>)}
+              {[...(context?.league ? LEAGUE_SUGGESTIONS : []), ...SUGGESTIONS].map((s) => <button key={s} className="px-chip" onClick={() => ask(s)}>{s}</button>)}
             </div>
           </>
         )}
         {thread.map((t, i) => (
           <div key={i} className={`px-msg ${t.role}${t.error ? " error" : ""}`}>
-            {t.role === "user" ? <p>{t.text}</p> : <RichText text={t.text} onOpen={openFromChat} />}
+            {t.role === "user" ? <p>{t.text}</p> : <RichText text={t.text} onOpen={openFromChat} onOpenLeague={onOpenLeague} />}
             {(t.widgets || []).map((w, j) => <Widget key={j} w={w} everyone={everyone} tierHits={tierHits} onOpen={openFromChat} />)}
           </div>
         ))}
@@ -253,7 +263,7 @@ export function ChatDock({ everyone, tierHits, onOpen, size, onSize }) {
           ask(q);
         }}
       >
-        <input ref={inputRef} className="input" value={q} maxLength={1000} placeholder="Ask about the prospects…" onChange={(e) => setQ(e.target.value)} disabled={busy} />
+        <input ref={inputRef} className="input" value={q} maxLength={1000} placeholder={context?.league ? "Ask about your league or the prospects…" : "Ask about the prospects…"} onChange={(e) => setQ(e.target.value)} disabled={busy} />
         <button className="px-send" type="submit" disabled={busy || !q.trim()}>Send</button>
       </form>
     </section>

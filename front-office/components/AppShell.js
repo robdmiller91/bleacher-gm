@@ -6,11 +6,15 @@ import { usePathname, useRouter } from "next/navigation";
 import { Icon, Img, Pos } from "./ui";
 import PlayerModal from "./PlayerModal";
 import Connect from "./Connect";
+import { ChatDock } from "./prospectTools";
+import { loadProspectData } from "@/lib/prospects";
 
 const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
 const LEAGUE_FREE = ["/", "/prospects"];
+const DOCK_KEY = "bgm-chat-size";
+const DOCK_SIZES = ["closed", "third", "half", "full"];
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "home" },
@@ -149,6 +153,9 @@ export default function AppShell({ children }) {
   const [live, setLive] = useState(null);
   const [playerId, setPlayerId] = useState(null);
   const [theme, setTheme] = useState("dark");
+  // "Ask the model" chat, docked on every page: closed, third, half or full height (remembered in this browser).
+  const [dock, setDock] = useState("closed");
+  const [prospectData, setProspectData] = useState(null);
 
   useEffect(() => {
     setTheme(document.documentElement.dataset.theme || "dark");
@@ -225,6 +232,34 @@ export default function AppShell({ children }) {
 
   const openPlayer = useCallback((id) => setPlayerId(String(id)), []);
   const ctx = useMemo(() => ({ data, live, openPlayer, theme, leagueQuery }), [data, live, openPlayer, theme, leagueQuery]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DOCK_KEY);
+      if (DOCK_SIZES.includes(saved)) setDock(saved);
+    } catch {}
+  }, []);
+  const sizeDock = useCallback((s) => {
+    setDock(s);
+    try {
+      localStorage.setItem(DOCK_KEY, s);
+    } catch {}
+  }, []);
+  // The chat's player cards and offline answers need the prospect data; load it the first time the chat opens.
+  useEffect(() => {
+    if (dock !== "closed" && !prospectData) loadProspectData().then(setProspectData).catch(() => {});
+  }, [dock, prospectData]);
+  const everyone = useMemo(() => (prospectData ? [...prospectData.prospects, ...prospectData.history] : []), [prospectData]);
+  // Prospect links open the report card on the prospect board; league players open the player view.
+  const openProspectFromChat = useCallback(
+    (id) => {
+      if (LEAGUE_FREE.includes(pathname)) window.dispatchEvent(new CustomEvent("bgm:open-prospect", { detail: id }));
+      else router.push(`/?p=${encodeURIComponent(id)}`);
+    },
+    [pathname, router],
+  );
+  const openLeaguePlayerFromChat = useCallback((id) => data?.players?.[id] && setPlayerId(String(id)), [data]);
+  const chatContext = useMemo(() => (leagueId ? { league: leagueId, user: sel?.userId || null } : null), [leagueId, sel?.userId]);
   const me = data?.teams.find((t) => t.rosterId === data.me);
 
   // The prospect pages don't need a Sleeper league, so they render before (or without) connecting one.
@@ -249,7 +284,7 @@ export default function AppShell({ children }) {
           <div className="rail-spacer" />
         </aside>
 
-        <div className="main">
+        <div className={`main dock-${dock}`}>
           <header className="topbar">
             <button
               type="button"
@@ -288,6 +323,15 @@ export default function AppShell({ children }) {
           </footer>
         </div>
       </div>
+      <ChatDock
+        everyone={everyone}
+        tierHits={prospectData?.tierHits || {}}
+        onOpen={openProspectFromChat}
+        onOpenLeague={openLeaguePlayerFromChat}
+        context={chatContext}
+        size={dock}
+        onSize={sizeDock}
+      />
       {data && playerId && <PlayerModal key={playerId} id={playerId} onClose={() => setPlayerId(null)} />}
     </AppContext.Provider>
   );

@@ -2,6 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { parseCsv } from "@/lib/model";
 import { PROSPECT_CLASS, buildAll, buildHitRates, tierHitRates } from "@/lib/prospects";
 import { brief, detail, findPlayers, rankPlayers, similarTo } from "@/lib/prospectQuery";
+import { draftPicks, findTeam, leagueOverview, leaguePlayers, teamDetail } from "@/lib/leagueQuery";
+import { buildLeague, isSleeperId } from "@/lib/sleeper";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -10,6 +12,18 @@ const MODEL = "claude-opus-5-5";
 const MAX_STEPS = 8;
 const MAX_QUESTION = 1000;
 const POSITIONS = ["QB", "RB", "WR", "TE"];
+
+// League data is rebuilt from Sleeper at most every 5 minutes per league and user.
+const leagueCache = new Map();
+async function loadLeague(leagueId, userId) {
+  const key = `${leagueId}|${userId || ""}`;
+  const hit = leagueCache.get(key);
+  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.data;
+  const data = await buildLeague(leagueId, userId);
+  leagueCache.set(key, { at: Date.now(), data });
+  if (leagueCache.size > 50) leagueCache.delete(leagueCache.keys().next().value);
+  return data;
+}
 
 // The prospect files are static assets, so read them the same way the browser does.
 let cache = null;
@@ -29,11 +43,11 @@ async function loadData(origin) {
   return cache;
 }
 
-const SYSTEM = `You answer questions about NFL draft prospects for the Bleacher GM site, using the BGM Prospect Score.
+const SYSTEM = `You are the assistant for Bleacher GM, a dynasty fantasy football site. You answer questions about the user's Sleeper league (when one is connected) and about NFL draft prospects scored with the BGM Prospect Score.
 
 The model: each prospect gets 0-10 grades on college inputs (dominator rating, breakout age, yards per game, efficiency, draft age, size, speed score when a 40 time exists), averaged into a production profile. Position grade = production + a draft-capital boost (the big-board rank for the ${PROSPECT_CLASS} class, the actual pick for past classes), usually 8-15. Overall is the grade's percentile at the position (0-100). Z-score puts all positions on one scale and orders each class. Tiers, best to worst: Cornerstone, Elite (Elite+ / Elite / Elite Lite), Elite Upside, Upside, Upside Lite, Outlier, Outlier Lite, Purgatory. "Model vs hype" compares production with draft capital. NFL outcome is the best full-PPR positional finish in a player's first four seasons (WR1 = top 12, WR2 = top 24, WR3 = top 36).
 
-The data covers the ${PROSPECT_CLASS} class (about 30 top prospects, stats through late October 2026) and QBs, RBs, WRs and TEs drafted 2018-2025 with college stats on ESPN. PFF charting stats are not in the data.
+The data covers the ${PROSPECT_CLASS} class (about 30 top prospects, stats through late October 2026) and QBs, RBs, WRs and TEs drafted 2018-2026 with college stats on ESPN. The 2026 class has only part of its rookie NFL season, so its outcomes show as "Too early". PFF charting stats are not in the data.
 
 How to answer:
 - Use the tools for every fact about a player. Never rely on memory for grades, stats or outcomes, and never invent players. If someone isn't in the data, say so.
@@ -42,7 +56,13 @@ How to answer:
 - Be concise: lead with the answer, then the few numbers that support it. Use short lists for comparisons.
 - When you name a player from the data, write it as a link: [Player Name](#p:ID) using the id from the tools.
 - These are model outputs, not certainties. Say so briefly when a call is close or a sample is small.
-- Answer only questions about these prospects, the model, or dynasty fantasy football draft strategy. Politely decline anything else.`;
+- When you name a player from the user's league data, link them as [Player Name](#l:ID) using the league player id.
+- Answer only questions about the user's league, these prospects, the model, or dynasty fantasy football strategy (trades, rebuilding vs contending, draft picks). Politely decline anything else.`;
+
+// Added when a league is connected. Kept separate so the long prompt above stays cached.
+const leagueSystem = (name, team) => `The user's Sleeper league "${name}" is connected${team ? `; their team is "${team}"` : ""}. For questions about their team, standings, trades, draft picks or strategy, use the league tools (league_overview, get_team, draft_picks, league_player) before answering, and use the prospect tools for the incoming rookie class.
+
+Strategy questions such as tanking, selling veterans or pushing for a title: weigh the user's current record and playoff odds, their roster's value and age (window), how much value a better draft slot is actually worth (draft_picks gives first-round value by slot), and how strong the top of the  class is. Give a clear recommendation with the key numbers, and the main risk. Many leagues ban deliberately losing, so frame it as rebuilding (selling aging veterans for picks and young players) rather than benching starters, and mention checking the league's rules.`;
 
 const TOOLS = [
   {
@@ -107,8 +127,45 @@ const TOOLS = [
   },
 ];
 
+// League tools, offered only when the user has connected a Sleeper league.
+const LEAGUE_TOOLS = [
+  {
+    name: "league_overview",
+    description: "The connected league: settings, current week, and every team's record, standing, points, playoff odds, contender/rebuild window, average age, total and positional value ranks. Marks the user's team.",
+    input_schema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_team",
+    description: "One team's full roster grouped by position (value, age, positional rank, points per game, starter flag) plus the draft picks it owns. Use team \"me\" for the user's team, or a team name, manager name or roster id.",
+    input_schema: { type: "object", properties: { team: { type: "string" } }, required: ["team"] },
+  },
+  {
+    name: "draft_picks",
+    description: "Every draft pick in the league with its owner, original team, projected or set slot and value, plus first-round value by slot (to price moving up or down). Optionally one season.",
+    input_schema: { type: "object", properties: { season: { type: "integer" } }, required: [] },
+  },
+  {
+    name: "league_player",
+    description: "Look up NFL players in the league by name: dynasty value, positional rank, age, points per game, 30-day value trend and which team owns them.",
+    input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+  },
+];
+
 // Every tool is a read-only lookup; inputs are checked here because the model's arguments are untrusted.
 function runTool(name, input, data) {
+  if (data.league) {
+    const L = data.league;
+    if (name === "league_overview") return leagueOverview(L);
+    if (name === "get_team") {
+      const t = findTeam(L, input?.team);
+      return t ? teamDetail(L, t) : { error: `No team matching "${input?.team}". Teams: ${L.teams.map((x) => x.name).join(", ")}` };
+    }
+    if (name === "draft_picks") return draftPicks(L, Number.isInteger(input?.season) ? input.season : undefined);
+    if (name === "league_player") {
+      const hits = leaguePlayers(L, String(input?.query || "").slice(0, 80));
+      return hits.length ? hits : { result: "No league players match." };
+    }
+  }
   const byId = (id) => data.all.find((x) => x.id === String(id || ""));
   const pos = POSITIONS.includes(input?.position) ? input.position : undefined;
   const cls = Number.isInteger(input?.class_year) ? input.class_year : undefined;
@@ -184,8 +241,17 @@ export async function POST(req) {
     .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
   while (history.length && history[0].role !== "user") history.shift();
 
+  // The connected Sleeper league, if any. Ids are numeric strings; anything else is ignored.
+  const leagueId = isSleeperId(body?.league) ? String(body.league) : null;
+  const userId = isSleeperId(body?.user) ? String(body.user) : null;
+
   try {
-    const data = await loadData(new URL(req.url).origin);
+    const prospects = await loadData(new URL(req.url).origin);
+    const league = leagueId ? await loadLeague(leagueId, userId) : null;
+    const data = { ...prospects, league };
+    const myTeam = league ? league.teams.find((t) => t.rosterId === league.me)?.name : null;
+    const system = league ? [{ type: "text", text: SYSTEM }, { type: "text", text: leagueSystem(league.league.name, myTeam) }] : SYSTEM;
+    const tools = league ? [...TOOLS, ...LEAGUE_TOOLS] : TOOLS;
     const client = new Anthropic();
     const messages = [...history, { role: "user", content: question }];
     // Cards the chat shows under the answer, collected from the lookups Claude made.
@@ -203,8 +269,8 @@ export async function POST(req) {
         fallbacks: "default",
         cache_control: { type: "ephemeral" },
         output_config: { effort: "medium" },
-        system: SYSTEM,
-        tools: TOOLS,
+        system,
+        tools,
         messages,
       });
 

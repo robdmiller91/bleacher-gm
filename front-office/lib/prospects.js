@@ -172,7 +172,7 @@ export const GRADE_FIT = {
   QB: { a: 0.631, b: 0.707, c: 0.76 },
   RB: { a: 0.2, b: 0.2, c: 8.77 },
   WR: { a: 0.295, b: 0.453, c: 5.8 },
-  TE: { a: 0.35, b: 0.45, c: 8.51 },
+  TE: { a: 0.25, b: 0.65, c: 7.39 },
 };
 // Overall = the grade's percentile among every prospect at the position, modelled as a normal
 // curve fitted to reference (grade, overall) pairs. Z-score = (overall − 50) ÷ 28.8, the spread

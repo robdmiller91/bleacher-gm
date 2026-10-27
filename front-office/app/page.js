@@ -2,12 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BoardView, GlossaryView, RankingsView, ReportCard } from "@/components/prospects";
-import { ChatDock } from "@/components/prospectTools";
 import { PROSPECT_CLASS, loadProspectData } from "@/lib/prospects";
 
 const POSITIONS = ["QB", "RB", "WR", "TE"];
 const VIEWS = ["board", "rankings", "glossary"];
-const DOCK_KEY = "bgm-chat-size";
 
 // What's on screen lives in the URL (?view=, ?pos=, ?class=, ?p=) so any page can be linked or refreshed.
 function readUrl() {
@@ -82,8 +80,6 @@ export default function Prospects() {
   const [year, setYear] = useState(PROSPECT_CLASS);
   const [boardPos, setBoardPos] = useState("ALL");
   const [open, setOpen] = useState(null);
-  // Chat dock height: closed, third, half or full. Remembered in this browser.
-  const [dock, setDock] = useState("closed");
 
   useEffect(() => {
     loadProspectData().then(setData).catch(() => setError(true));
@@ -92,17 +88,16 @@ export default function Prospects() {
     setPos(s.pos);
     setYear(s.year);
     setOpen(s.open);
-    try {
-      const saved = localStorage.getItem(DOCK_KEY);
-      if (["closed", "third", "half", "full"].includes(saved)) setDock(saved);
-    } catch {}
   }, []);
-  const sizeDock = (s) => {
-    setDock(s);
-    try {
-      localStorage.setItem(DOCK_KEY, s);
-    } catch {}
-  };
+  // Player links in the site-wide chat open report cards here.
+  useEffect(() => {
+    const onOpenEvent = (e) => {
+      setOpen(String(e.detail));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.addEventListener("bgm:open-prospect", onOpenEvent);
+    return () => window.removeEventListener("bgm:open-prospect", onOpenEvent);
+  }, []);
   useEffect(() => {
     if (data) writeUrl({ view, pos, year, open });
   }, [data, view, pos, year, open]);
@@ -141,7 +136,7 @@ export default function Prospects() {
   const tab = current ? "report" : view;
 
   return (
-    <div className={`px-app dock-${dock}`}>
+    <div className="px-app">
       <header className="px-nav">
         <button className="px-brand" onClick={() => go({ view: "board", year: PROSPECT_CLASS })}>
           <span className="px-brand-mark">BGM</span>
@@ -225,7 +220,6 @@ export default function Prospects() {
         College stats from ESPN. Past drafts, combine results, NFL fantasy finishes and NFL headshots from nflverse (CC BY 4.0) and Sleeper. {PROSPECT_CLASS} big-board ranks from Tankathon.
         The BGM Prospect Score is our own model.
       </p>
-      <ChatDock everyone={everyone} tierHits={data.tierHits} onOpen={openProspect} size={dock} onSize={sizeDock} />
     </div>
   );
 }

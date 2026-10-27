@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useApp } from "@/components/AppShell";
 import { Img, PageHead } from "@/components/ui";
 import { AssetPanel, PickIcon } from "@/components/assets";
+import RosterViewer from "@/components/RosterViewer";
 import { applyMoves, fmt, ordinal, teamAssets } from "@/lib/model";
 
 export default function Trade() {
@@ -14,6 +15,7 @@ export default function Trade() {
   const [partner, setPartner] = useState(others[0]?.rosterId);
   const [give, setGive] = useState([]);
   const [get, setGet] = useState([]);
+  const [showRosters, setShowRosters] = useState(false);
 
   // Deep links from the player view: /trade?give=ID or /trade?get=ID&partner=RID
   useEffect(() => {
@@ -91,8 +93,22 @@ export default function Trade() {
         <span className="chip">{data.league.superflex ? "Superflex" : "1QB"}</span>
         <span className="chip">{data.league.ppr} PPR</span>
         <span className="chip">{data.league.numTeams} teams</span>
+        <button className="btn" onClick={() => setShowRosters(true)}>View rosters</button>
         {(give.length > 0 || get.length > 0) && <button className="btn" onClick={() => { setGive([]); setGet([]); }}>Clear</button>}
       </PageHead>
+
+      {showRosters && (
+        <RosterViewer
+          data={data}
+          me={me}
+          partner={partner}
+          give={give}
+          get={get}
+          onToggleGive={toggle(setGive)}
+          onToggleGet={toggle(setGet)}
+          onClose={() => setShowRosters(false)}
+        />
+      )}
 
       <div className="trade-layout">
         <AssetPanel title="My Team" assets={myAssets} selected={give} toggle={toggle(setGive)} />

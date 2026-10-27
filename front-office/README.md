@@ -10,12 +10,12 @@ The homepage (the prospect board) needs no login. For the league tools, enter a 
 ## Pages
 - **Dashboard** (`/dashboard`): standings, average points, playoff odds, dynasty rank, live matchup with win probability and lineups, power radar, weekly points vs. league median, position breakdown, injuries, roster.
 - **Rankings** (`/rankings`): tiered dynasty rankings with season stats, owners, sorting and filters.
-- **Trade** (`/trade`): two-sided trade calculator with a value balance and before/after league ranks for both teams.
+- **Trade** (`/trade`): two-sided trade calculator with a value balance and before/after league ranks for both teams. "View rosters" opens every team's positional groups and rosters over the calculator, without losing the trade in progress.
 - **Roster Lab** (`/roster-lab`): sandbox for hypothetical moves (any team, free agents, rookies, picks) with before/after ranks, league shares and a three-year value trajectory.
 - **Team Blueprint** (`/blueprint`): archetype, positional grades, value and starter share, multi-year outlook, draft capital, cornerstones (star a player) and trade strategy.
 - **League** (`/league`): power rankings with expandable rosters and draft picks.
 - **League History** (`/history`): every past draft board and every trade, with a Drafts/Trades toggle. Trades show what each side's haul is worth today.
-- **Prospects** (`/`, the homepage; `/prospects` also works): the BGM Prospect Score, our own rookie model. It has a class board, sortable rankings across every class (2018–2025 plus 2027, filterable by class), report cards (grades, radar chart, tier and draft-round hit rates, historical comps, head-to-head compare and a model-vs-hype call) and a glossary. Tiers follow the screenshot model: Cornerstone, Elite (Elite+ / Elite / Elite Lite), Elite Upside, Upside, Upside Lite, Outlier, Outlier Lite, Purgatory. Every QB/RB/WR/TE drafted since 2018 with college stats on ESPN is graded the same way, so past classes can be browsed alongside what actually happened to those players.
+- **Prospects** (`/`, the homepage; `/prospects` also works): the BGM Prospect Score, our own rookie model. It has a class board, sortable rankings across every class (2018–2026 plus 2027, filterable by class), report cards (grades, radar chart, tier and draft-round hit rates, historical comps, head-to-head compare and a model-vs-hype call) and a glossary. Tiers follow the screenshot model: Cornerstone, Elite (Elite+ / Elite / Elite Lite), Elite Upside, Upside, Upside Lite, Outlier, Outlier Lite, Purgatory. Every QB/RB/WR/TE drafted since 2018 with college stats on ESPN is graded the same way, so past classes can be browsed alongside what actually happened to those players.
 - **Player view**: click any player anywhere, or search with ⌘K. Shows a profile, weekly points chart, heat-mapped game logs, news headlines and league context.
 - **Light/dark**: toggle in the top bar. Your choice is remembered.
 
@@ -63,7 +63,7 @@ Our own model and labels. Its scoring scale (position grade ≈ 8–15, percenti
 - Headshots: past prospects use Sleeper's NFL headshots (`Sleeper Id` column). The coming class shows school-colored initials unless you add an `Image` column to `prospects_2027.csv` pointing at a picture you have the rights to (for example `/img/prospects/jeremiah-smith.jpg` in `public/`).
 - `public/data/prospects_2027.csv`: the coming class (bio, board rank, notes). Add 40 times in the `Forty` column after the combine, and update `Board Rank` as boards move.
 - `public/data/prospect_seasons.csv`: their college seasons with team totals. The 2026 rows are the season to date as of 26 Oct 2026.
-- `public/data/prospect_history.csv` and `prospect_history_seasons.csv`: QBs, RBs, WRs and TEs drafted 2018–2025 (the 588 with college stats on ESPN, whose data starts around 2014), with their college seasons and NFL outcome (best full-PPR positional finish in their first four seasons).
+- `public/data/prospect_history.csv` and `prospect_history_seasons.csv`: QBs, RBs, WRs and TEs drafted 2018–2026 (the 666 with college stats on ESPN, whose data starts around 2014), with their college seasons and NFL outcome (best full-PPR positional finish in their first four seasons).
 - `public/data/prospect_hit_rates.csv`: hit rates by position and draft round for 2012–2021 drafts.
 
 Not included: PFF charting stats (missed tackles forced, yards after contact, route data) and conference-strength adjustments, which aren't in free data.
@@ -78,7 +78,9 @@ Season,Consensus Rank,Player,Position,School,Notes
 Replace the starter list with your own board whenever you like. A prospect ranked Nth is valued like the Nth-best pick in that class (FantasyCalc pick prices), with a premium for the top three.
 
 ## Ask the model (chat)
-A chat panel docked to the bottom of the prospect pages (the "Ask the model" button; ⅓ / ½ / Full height, Clear, Close). It handles questions, comparisons ("compare A and B" shows a head-to-head card in the chat) and comps ("2027 players like Ja'Marr Chase" shows a comp list), and links any player it names to their report card. Free-form questions are answered by Claude (`claude-opus-5-5`) through `app/api/ask/route.js`. It looks everything up in the prospect data with read-only tools (search, report card, compare, similar players, rankings, hit rates), so answers use our numbers rather than the model's memory.
+A chat panel docked to the bottom of every page (the "Ask the model" button; ⅓ / ½ / Full height, Clear, Close). It handles questions, comparisons ("compare A and B" shows a head-to-head card in the chat) and comps ("2027 players like Ja'Marr Chase" shows a comp list), and links any player it names to their report card. Free-form questions are answered by Claude (`claude-opus-5-5`) through `app/api/ask/route.js`. It looks everything up in the prospect data with read-only tools (search, report card, compare, similar players, rankings, hit rates), so answers use our numbers rather than the model's memory.
+
+With a Sleeper league connected, it can also answer questions about your league: standings and playoff odds, every roster by position, who owns which draft picks and what each slot is worth, and strategy (for example "is it worth tanking for a better pick?").
 
 Free-form answers need an Anthropic API key:
 1. Create a key at console.anthropic.com and **set a monthly spend limit** there, because a public site lets anyone use it.
