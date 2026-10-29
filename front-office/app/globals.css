@@ -1100,3 +1100,24 @@ select.px-pill.hot { background-image: none; padding-right: 1rem; }
 .tf-why { margin: 0; }
 .tf-load { justify-self: start; }
 @media (max-width: 1100px) { .tf-cols { grid-template-columns: 1fr; } }
+
+/* Player view: transaction history */
+.tx-list { display: grid; gap: 0.5rem; }
+.tx { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) auto; gap: 0.8rem; align-items: start; padding: 0.8rem 1rem; background: var(--surface-2); border-radius: 10px; }
+.tx-kind { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); padding-top: 0.15rem; }
+.tx-traded .tx-kind { color: var(--accent); }
+.tx-claimed .tx-kind, .tx-added .tx-kind { color: var(--good); }
+.tx-dropped .tx-kind { color: var(--bad); }
+.tx-title { font-size: 0.92rem; }
+.tx-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.2rem 1rem; margin-top: 0.4rem; }
+.tx ul { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; gap: 0.2rem; font-size: 0.85rem; }
+.tx-sides ul { margin: 0; }
+.tx-plus, .tx-minus { display: inline-block; width: 1rem; font-weight: 700; }
+.tx-plus { color: var(--good); }
+.tx-minus { color: var(--bad); }
+.tx-date { text-align: right; white-space: nowrap; }
+@media (max-width: 900px) {
+  .tx { grid-template-columns: minmax(0, 1fr) auto; }
+  .tx-kind { grid-column: 1 / -1; padding: 0; }
+  .tx-sides { grid-template-columns: 1fr; }
+}

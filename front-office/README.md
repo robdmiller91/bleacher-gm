@@ -16,7 +16,7 @@ The homepage (the prospect board) needs no login. For the league tools, enter a 
 - **League** (`/league`): power rankings with expandable rosters and draft picks.
 - **League History** (`/history`): every past draft board and every trade, with a Drafts/Trades toggle. Trades show what each side's haul is worth today.
 - **Prospects** (`/`, the homepage; `/prospects` also works): the BGM Prospect Score, our own rookie model. It has a class board, sortable rankings across every class (2018–2026 plus 2027, filterable by class), report cards (grades, radar chart, tier and draft-round hit rates, historical comps, head-to-head compare and a model-vs-hype call) and a glossary. Tiers follow the screenshot model: Cornerstone, Elite (Elite+ / Elite / Elite Lite), Elite Upside, Upside, Upside Lite, Outlier, Outlier Lite, Purgatory. Every QB/RB/WR/TE drafted since 2018 with college stats on ESPN is graded the same way, so past classes can be browsed alongside what actually happened to those players.
-- **Player view**: click any player anywhere, or search with ⌘K. Shows a profile, weekly points chart, heat-mapped game logs, news headlines and league context.
+- **Player view**: click any player anywhere, or search with ⌘K. Shows a profile, weekly points chart, heat-mapped game logs, news headlines, league context and a Transactions tab: the player's full history in this league across every linked season (drafted, traded with both sides of the deal, waiver claims with FAAB, free-agent adds and drops), built from `/api/history` (`lib/playerHistory.js`).
 - **Light/dark**: toggle in the top bar. Your choice is remembered.
 
 ## Deploy to Vercel

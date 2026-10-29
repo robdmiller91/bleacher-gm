@@ -137,13 +137,20 @@ export default function TradeFinder({ data, me, give, get, leagueQuery, onLoad, 
     market ? (market.trades.length ? `${market.trades.length} from FantasyCalc${market.limited ? " (it asked us to slow down, so this is a partial pull)" : ""}` : "FantasyCalc's feed didn't respond (try again in a few minutes)") : "loading FantasyCalc…",
   ].join(" · ");
 
-  // Default to the first asset in the trade being built.
+  // Follow the trade being built: default to its first asset, move on when that asset is removed,
+  // and clear when the calculator is cleared. A player picked from the search box stays put.
   const inTrade = [...give, ...get];
   useEffect(() => {
-    if (!focusId && inTrade.length) setFocusId(inTrade[0]);
+    if (!search && (!focusId || !inTrade.includes(focusId))) setFocusId(inTrade[0] ?? null);
     setShown(8);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inTrade.join()]);
+  const clear = () => {
+    setFocusId(null);
+    setSearch("");
+    setOnlyFormat(false);
+    setShown(8);
+  };
 
   const focus = useMemo(() => focusOf(focusId, data), [focusId, data]);
   const pv = useMemo(() => pickValues(data), [data]);
@@ -189,7 +196,7 @@ export default function TradeFinder({ data, me, give, get, leagueQuery, onLoad, 
         <span className="muted small">Look up</span>
         {inTrade.map((id) => {
           const f = focusOf(id, data);
-          return f ? <button key={id} className={`px-chip${focusId === id ? " on" : ""}`} onClick={() => setFocusId(id)}>{f.label}</button> : null;
+          return f ? <button key={id} className={`px-chip${focusId === id ? " on" : ""}`} onClick={() => { setFocusId(id); setSearch(""); }}>{f.label}</button> : null;
         })}
         <input
           className="input tf-search"
@@ -201,6 +208,7 @@ export default function TradeFinder({ data, me, give, get, leagueQuery, onLoad, 
         <datalist id="tf-players">
           {players.map((p) => <option key={p.id} value={p.name}>{`${p.pos} · ${data.teams.find((t) => t.rosterId === p.owner)?.name || ""}`}</option>)}
         </datalist>
+        {(focus || search) && <button className="btn tf-clear" onClick={clear}>Clear</button>}
       </div>
 
       {!focus && <div className="empty muted">Pick a player above, or add players or picks to the calculator, to see recent trades and ideas.</div>}

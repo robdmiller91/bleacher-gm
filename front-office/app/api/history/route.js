@@ -70,6 +70,7 @@ async function draftsFor(entry, names) {
       draftId: d.draft_id,
       season: entry.season,
       type: d.type,
+      date: d.last_picked || d.start_time || 0,
       rounds,
       label: `${entry.season} ${rounds >= 10 ? "Startup" : "Rookie"} Draft`,
       slots: Object.keys(slotToRoster).length
@@ -81,13 +82,31 @@ async function draftsFor(entry, names) {
   return results;
 }
 
-async function tradesFor(entry, names, players) {
+// Trades in full, plus waiver and free-agent adds/drops in a compact form for player timelines.
+async function transactionsFor(entry, names, players) {
   const weeks = Array.from({ length: 19 }, (_, i) => i); // week 0 = offseason
   const all = await Promise.all(weeks.map((w) => safeJSON(`${SLEEPER}/league/${entry.id}/transactions/${w}`, [])));
   const trades = [];
+  const moves = [];
+  const teamOf = (map) => Object.fromEntries(Object.entries(map || {}).map(([pid, rid]) => [pid, names[Number(rid)]?.name || `Roster ${rid}`]));
   all.forEach((list, week) => {
     for (const tx of Array.isArray(list) ? list : []) {
-      if (tx.type !== "trade" || tx.status !== "complete") continue;
+      if (tx.status !== "complete") continue;
+      if (tx.type !== "trade") {
+        if (tx.adds || tx.drops) {
+          moves.push({
+            id: tx.transaction_id,
+            season: entry.season,
+            week,
+            created: tx.status_updated || tx.created || 0,
+            type: tx.type,
+            adds: teamOf(tx.adds),
+            drops: teamOf(tx.drops),
+            bid: tx.settings?.waiver_bid ?? null,
+          });
+        }
+        continue;
+      }
       const sides = {};
       const side = (rid) => {
         const r = Number(rid);
@@ -120,7 +139,7 @@ async function tradesFor(entry, names, players) {
       trades.push({ id: tx.transaction_id, season: entry.season, week, created: tx.status_updated || tx.created || 0, sides: list2 });
     }
   });
-  return trades;
+  return { trades, moves };
 }
 
 export async function GET(req) {
@@ -130,12 +149,13 @@ export async function GET(req) {
     const perSeason = await Promise.all(
       chain.map(async (entry) => {
         const names = rosterNames(entry);
-        const [drafts, trades] = await Promise.all([draftsFor(entry, names), tradesFor(entry, names, players)]);
-        return { drafts, trades };
+        const [drafts, tx] = await Promise.all([draftsFor(entry, names), transactionsFor(entry, names, players)]);
+        return { drafts, ...tx };
       }),
     );
     const drafts = perSeason.flatMap((s) => s.drafts).sort((a, b) => b.season - a.season || a.rounds - b.rounds);
     const trades = perSeason.flatMap((s) => s.trades).sort((a, b) => b.created - a.created);
+    const moves = perSeason.flatMap((s) => s.moves).sort((a, b) => b.created - a.created);
 
     // Which player each pick became, so traded picks can be valued today.
     const pickBecame = {};
@@ -146,7 +166,7 @@ export async function GET(req) {
 
     const managers = Object.values(currentNames).map((n) => ({ ownerId: n.ownerId, name: n.name }));
     return Response.json(
-      { seasons: chain.map((c) => c.season), managers, drafts, trades, pickBecame },
+      { seasons: chain.map((c) => c.season), managers, drafts, trades, moves, pickBecame },
       { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } },
     );
   } catch (e) {

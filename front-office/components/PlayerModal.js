@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useApp } from "./AppShell";
 import { Icon, Img, Pos, PlayerCell, Trend, heatScale } from "./ui";
 import { AGE_CURVES, POS_VAR, fmt, heightLabel, ordinal, teamLogo } from "@/lib/model";
+import { playerTimeline } from "@/lib/playerHistory";
 
 // Game log column groups per position: [statKey, label, lowerIsBetter]
 const RECEIVING = { group: "Receiving", cols: [["rec_tgt", "TGT"], ["rec", "REC"], ["rec_yd", "YDS"], ["ypr", "Y/R"], ["rec_td", "TD"]] };
@@ -141,6 +142,71 @@ function NewsFeed({ items }) {
   );
 }
 
+// League history is the same for every player, so fetch it once per league and share it.
+const historyCache = {};
+const leagueHistory = (q) =>
+  (historyCache[q] ??= fetch(`/api/history?${q}`)
+    .then((r) => r.json())
+    .catch((e) => ({ error: String(e) }))
+    .then((d) => {
+      if (d.error) delete historyCache[q];
+      return d;
+    }));
+
+const TX_LABEL = { drafted: "Drafted", traded: "Traded", claimed: "Claimed", added: "Added", dropped: "Dropped", moved: "Commish" };
+
+function TxDate({ e }) {
+  return (
+    <span className="muted small tx-date">
+      {e.date ? new Date(e.date).toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" }) : e.season}
+      {e.week != null && e.kind !== "drafted" ? <><br />{e.week === 0 ? "Offseason" : `Week ${e.week}`}</> : null}
+    </span>
+  );
+}
+
+function Transactions({ events, playerName }) {
+  const { data, openPlayer } = useApp();
+  const item = (a, sign) => (
+    <li key={(a.id || a.label) + sign}>
+      <span className={sign === "+" ? "tx-plus" : "tx-minus"}>{sign === "+" ? "+" : "−"}</span>
+      {a.id && data.players[a.id] ? <button className="plink" onClick={() => openPlayer(a.id)}>{a.label}</button> : a.label}
+    </li>
+  );
+  if (!events.length) return <div className="empty">No transactions for {playerName} in this league's history.</div>;
+  return (
+    <div className="tx-list">
+      {events.map((e) => (
+        <div key={e.key} className={`tx tx-${e.kind}`}>
+          <span className="tx-kind">{TX_LABEL[e.kind]}</span>
+          <div className="tx-body">
+            {e.kind === "drafted" && <div className="tx-title">by <b>{e.team}</b> with pick {e.pick} <span className="muted small">· {e.draft}</span></div>}
+            {e.kind === "traded" && (
+              <>
+                <div className="tx-title">to <b>{e.team}</b> from <b>{e.from}</b></div>
+                <div className="tx-sides">
+                  <ul>{e.got.map((a) => item(a, "+"))}</ul>
+                  <ul>{e.gave.map((a) => item(a, "-"))}</ul>
+                </div>
+              </>
+            )}
+            {(e.kind === "claimed" || e.kind === "added" || (e.kind === "moved" && !e.released)) && (
+              <>
+                <div className="tx-title">
+                  {e.kind === "claimed" ? "off waivers by" : e.kind === "added" ? "as a free agent by" : "to"} <b>{e.team}</b>
+                  {e.bid ? <span className="muted small"> · ${e.bid} FAAB</span> : null}
+                </div>
+                {e.dropped?.length > 0 && <ul>{e.dropped.map((pid) => item({ id: pid, label: data.players[pid]?.name || "Player" }, "-"))}</ul>}
+              </>
+            )}
+            {e.released && <div className="tx-title">{e.kind === "moved" ? "removed from" : "by"} <b>{e.team}</b></div>}
+          </div>
+          <TxDate e={e} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function PlayerModal({ id, onClose }) {
   const { data, live, openPlayer, leagueQuery } = useApp();
   const p = data.players[id];
@@ -148,6 +214,17 @@ export default function PlayerModal({ id, onClose }) {
   const [season, setSeason] = useState(data.league.season);
   const [logs, setLogs] = useState(null);
   const [news, setNews] = useState(null);
+  const [hist, setHist] = useState(null);
+
+  useEffect(() => {
+    if (!leagueQuery) return;
+    let alive = true;
+    leagueHistory(leagueQuery).then((d) => alive && setHist(d));
+    return () => {
+      alive = false;
+    };
+  }, [leagueQuery]);
+  const timeline = useMemo(() => (hist && !hist.error ? playerTimeline(hist, id) : []), [hist, id]);
 
   useEffect(() => {
     let alive = true;
@@ -290,13 +367,29 @@ export default function PlayerModal({ id, onClose }) {
           </div>
 
           <div className="tabs">
-            {[["overview", "Overview"], ["news", `News${news?.length ? ` (${news.length})` : ""}`], ["logs", "Game Logs"], ["league", "League Context"]].map(([k, l]) => (
+            {[["overview", "Overview"], ["news", `News${news?.length ? ` (${news.length})` : ""}`], ["logs", "Game Logs"], ["moves", `Transactions${timeline.length ? ` (${timeline.length})` : ""}`], ["league", "League Context"]].map(([k, l]) => (
               <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>
             ))}
           </div>
 
           <div className="modal-body">
             {tab === "news" && <NewsFeed items={news} />}
+
+            {tab === "moves" && (
+              <div>
+                <div className="card-title">
+                  <h3>Transaction History</h3>
+                  <span className="muted small">Every season of this league on Sleeper</span>
+                </div>
+                {!hist ? (
+                  <div className="skeleton" style={{ height: 220 }} />
+                ) : hist.error ? (
+                  <div className="empty">Couldn't load league history: {hist.error}</div>
+                ) : (
+                  <Transactions events={timeline} playerName={p.name} />
+                )}
+              </div>
+            )}
 
             {tab === "overview" && (
               <div className="grid" style={{ gap: "1.2rem" }}>
