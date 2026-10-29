@@ -3,15 +3,15 @@ import { SLEEPER, errorResponse, getAllPlayers, leagueFrom, safeJSON } from "@/l
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Recent dynasty trades from three places, normalized to the same shape:
+// Recent dynasty trades from Sleeper, normalized to the same shape:
 //   league  - this league's trades this season (team names shown)
-//   network - other dynasty leagues your leaguemates play in, same QB format (anonymous)
-//   market  - FantasyCalc's feed of the latest trades in leagues like yours (anonymous)
+//   network - other dynasty leagues your leaguemates (and, if needed, their leaguemates) play in (anonymous)
+// (FantasyCalc's public feed is added in the browser; see marketTrades in lib/tradeFinder.js.)
 // Each trade: { id, source, date, format: {teams, superflex, ppr, tep}, sides: [{ name?, assets: [...] }] }
 // where an asset is { type: "player", id, name, pos } or { type: "pick", season, round }.
 
-const NETWORK_LEAGUES = 40; // cap on leaguemates' leagues scanned
-const NETWORK_WEEKS = 4; // most recent weeks scanned in each
+const NETWORK_LEAGUES = 40; // cap on other leagues scanned (every week of the season in each)
+const SECOND_DEGREE_USERS = 60; // cap on managers looked up one step out
 
 async function cachedJSON(url, seconds, fallback) {
   try {
@@ -61,22 +61,6 @@ function sleeperTrades(txLists, { source, format, names, players, leagueId }) {
   return out;
 }
 
-function marketTrades(list, format) {
-  const asset = (a) => {
-    if (a.position === "PICK") {
-      const m = /FP_(\d{4})_(\d)/.exec(a.sleeperId || a.mflId || "");
-      return m ? { type: "pick", season: Number(m[1]), round: Number(m[2]) } : null;
-    }
-    return a.sleeperId ? { type: "player", id: String(a.sleeperId), name: a.name, pos: a.position } : null;
-  };
-  return (Array.isArray(list) ? list : []).map((t) => ({
-    id: `market-${t.id}`,
-    source: "market",
-    date: Date.parse(t.date) || 0,
-    format: { teams: t.numTeams, superflex: (t.numSuperflex || 0) > 0 || t.numQbs === 2, ppr: t.ppr, tep: t.tePremium || 0 },
-    sides: [t.side1, t.side2].map((s) => ({ assets: (s || []).map(asset).filter(Boolean) })),
-  })).filter((t) => t.sides.every((s) => s.assets.length));
-}
 
 export async function GET(req) {
   try {
@@ -104,39 +88,39 @@ export async function GET(req) {
     const ownTx = await pool(weeks, 8, (w) => cachedJSON(`${SLEEPER}/league/${leagueId}/transactions/${w}`, 600, []));
     const own = sleeperTrades(ownTx, { source: "league", format, names, players, leagueId });
 
-    // Leaguemates' other dynasty leagues with the same QB format.
-    const lists = await pool(users.map((u) => String(u.user_id)), 8, (uid) => cachedJSON(`${SLEEPER}/user/${uid}/leagues/nfl/${season}`, 6 * 3600, []));
+    // Other dynasty leagues your leaguemates play in. If that's a small circle, go one step
+    // further out (the managers in those leagues). Same QB format first, then closest size.
     const seen = new Set([leagueId]);
     const others = [];
-    for (const l of lists.flat()) {
-      if (!l || seen.has(String(l.league_id))) continue;
-      seen.add(String(l.league_id));
-      if (Number(l.settings?.type) !== 2) continue;
-      const f = formatOf(l);
-      if (f.superflex !== format.superflex) continue;
-      others.push({ id: String(l.league_id), format: f });
+    const collect = (lists) => {
+      for (const l of lists.flat()) {
+        if (!l || seen.has(String(l.league_id))) continue;
+        seen.add(String(l.league_id));
+        if (Number(l.settings?.type) !== 2) continue;
+        others.push({ id: String(l.league_id), format: formatOf(l) });
+      }
+    };
+    const leaguesOf = (uid) => cachedJSON(`${SLEEPER}/user/${uid}/leagues/nfl/${season}`, 6 * 3600, []);
+    const seenUsers = new Set(users.map((u) => String(u.user_id)));
+    collect(await pool([...seenUsers], 8, leaguesOf));
+    if (others.length < NETWORK_LEAGUES / 2) {
+      const members = await pool(others.slice(0, 20), 8, (l) => cachedJSON(`${SLEEPER}/league/${l.id}/users`, 6 * 3600, []));
+      const next = members.flat().map((u) => String(u?.user_id || "")).filter((id) => id && !seenUsers.has(id) && seenUsers.add(id)).slice(0, SECOND_DEGREE_USERS);
+      collect(await pool(next, 8, leaguesOf));
     }
-    // Closest team counts first.
-    others.sort((a, b) => Math.abs((a.format.teams || 12) - (format.teams || 12)) - Math.abs((b.format.teams || 12) - (format.teams || 12)));
+    const distance = (f) => (f.superflex !== format.superflex ? 100 : 0) + Math.abs((f.teams || 12) - (format.teams || 12));
+    others.sort((a, b) => distance(a.format) - distance(b.format));
     const scan = others.slice(0, NETWORK_LEAGUES);
-    const recentWeeks = weeks.slice(-NETWORK_WEEKS);
-    const jobs = scan.flatMap((l) => recentWeeks.map((w) => ({ l, w })));
-    const netTx = await pool(jobs, 10, ({ l, w }) => cachedJSON(`${SLEEPER}/league/${l.id}/transactions/${w}`, 1800, []));
-    const network = scan.flatMap((l) =>
-      sleeperTrades(jobs.map((j, i) => (j.l === l ? netTx[i] : [])), { source: "network", format: l.format, players, leagueId: l.id }),
-    );
+    const jobs = scan.flatMap((l) => weeks.map((w) => ({ l, w })));
+    const netTx = await pool(jobs, 12, ({ l, w }) => cachedJSON(`${SLEEPER}/league/${l.id}/transactions/${w}`, 1800, []));
+    const byLeague = new Map(scan.map((l) => [l, []]));
+    jobs.forEach((j, i) => byLeague.get(j.l).push(netTx[i]));
+    const network = scan.flatMap((l) => sleeperTrades(byLeague.get(l), { source: "network", format: l.format, players, leagueId: l.id }));
 
-    // FantasyCalc's latest trades for this format, across common league sizes.
-    const sizes = [...new Set([format.teams || 12, 10, 12, 14])];
-    const fc = await Promise.all(
-      sizes.map((n) => cachedJSON(`https://api.fantasycalc.com/trades?isDynasty=true&numQbs=${format.superflex ? 2 : 1}&numTeams=${n}&ppr=${format.ppr}`, 900, [])),
-    );
-    const marketSeen = new Set();
-    const market = marketTrades(fc.flat(), format).filter((t) => !marketSeen.has(t.id) && marketSeen.add(t.id));
-
-    const trades = [...own, ...network, ...market].sort((a, b) => b.date - a.date);
+    // FantasyCalc's feed is fetched by the browser (lib/tradeFinder.js), which it allows directly.
+    const trades = [...own, ...network].sort((a, b) => b.date - a.date);
     return Response.json(
-      { format, trades, scanned: { leagues: scan.length, weeks: recentWeeks.length, market: market.length } },
+      { format, trades, scanned: { own: own.length, network: network.length, leagues: scan.length, weeks: weeks.length } },
       { headers: { "Cache-Control": "private, max-age=300" } },
     );
   } catch (e) {

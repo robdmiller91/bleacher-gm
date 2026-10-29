@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Img, Pos } from "./ui";
 import { PickIcon } from "./assets";
 import { fmt } from "@/lib/model";
-import { focusOf, formatDistance, involves, pickValues, suggestTrades, valueTrade } from "@/lib/tradeFinder";
+import { fetchMarketTrades, focusOf, formatDistance, involves, pickValues, suggestTrades, valueTrade } from "@/lib/tradeFinder";
 
 const SOURCE = { league: "Your league", network: "Leaguemate's league", market: "FantasyCalc" };
 
@@ -104,23 +104,38 @@ function Idea({ s, onLoad, onOpen }) {
 // Bottom of the trade calculator: pick a player or pick, see recent real trades that included it
 // and trade ideas with teams in this league.
 export default function TradeFinder({ data, me, give, get, leagueQuery, onLoad, onOpen }) {
-  const [feed, setFeed] = useState(null);
+  const [sleeper, setSleeper] = useState(null);
+  const [market, setMarket] = useState(null);
   const [focusId, setFocusId] = useState(null);
   const [search, setSearch] = useState("");
   const [onlyFormat, setOnlyFormat] = useState(false);
   const [shown, setShown] = useState(8);
 
+  // Sleeper trades come from our server (it scans many leagues and caches); FantasyCalc's feed is
+  // fetched straight from the browser. Each source shows up as soon as it arrives.
   useEffect(() => {
     if (!leagueQuery) return;
     let live = true;
     fetch(`/api/trades?${leagueQuery}`)
       .then((r) => r.json())
-      .then((d) => live && setFeed(d))
-      .catch((e) => live && setFeed({ error: String(e) }));
+      .then((d) => live && setSleeper(d.error ? { error: d.error, trades: [] } : d))
+      .catch((e) => live && setSleeper({ error: String(e), trades: [] }));
+    fetchMarketTrades({ superflex: data.league.superflex, teams: data.teams.length, ppr: data.league.ppr })
+      .then((d) => live && setMarket(d))
+      .catch((e) => live && setMarket({ error: String(e), trades: [] }));
     return () => {
       live = false;
     };
   }, [leagueQuery]);
+  const feed = useMemo(
+    () => (sleeper || market ? { format: sleeper?.format, trades: [...(sleeper?.trades || []), ...(market?.trades || [])] } : null),
+    [sleeper, market],
+  );
+  const loading = !sleeper || !market;
+  const sourceNote = [
+    sleeper ? (sleeper.error ? `Sleeper scan failed (${sleeper.error})` : `${sleeper.scanned.own} from your league, ${sleeper.scanned.network} from ${sleeper.scanned.leagues} other dynasty leagues on Sleeper`) : "scanning Sleeper leagues…",
+    market ? (market.trades.length ? `${market.trades.length} from FantasyCalc${market.limited ? " (it asked us to slow down, so this is a partial pull)" : ""}` : "FantasyCalc's feed didn't respond (try again in a few minutes)") : "loading FantasyCalc…",
+  ].join(" · ");
 
   // Default to the first asset in the trade being built.
   const inTrade = [...give, ...get];
@@ -216,10 +231,10 @@ export default function TradeFinder({ data, me, give, get, leagueQuery, onLoad, 
                 <h4>Recent trades</h4>
                 <label className="small tf-toggle"><input type="checkbox" checked={onlyFormat} onChange={(e) => setOnlyFormat(e.target.checked)} /> Same format only</label>
               </div>
+              <div className="muted small">Searched {feed ? feed.trades.length : 0} recent trades: {sourceNote}</div>
               {!feed && <div className="skeleton" style={{ height: 220 }} />}
-              {feed?.error && <div className="muted small">Couldn't load recent trades: {feed.error}</div>}
-              {feed?.trades && trades.length === 0 && (
-                <div className="muted small">No trades with {focus.label} in the {feed.trades.length} recent trades found. The feed covers your league's season, the last few weeks in {feed.scanned.leagues} leaguemates' leagues, and FantasyCalc's latest.</div>
+              {feed && trades.length === 0 && (
+                <div className="muted small">{loading ? `No trades with ${focus.label} yet. Still loading…` : `No trades with ${focus.label} in this pool. Lesser-traded players can come up empty.`}</div>
               )}
               {trades.slice(0, shown).map((t) => <TradeCard key={t.id} t={t} focusId={focus.id} mine={mine} onOpen={onOpen} />)}
               {trades.length > shown && <button className="btn" onClick={() => setShown((n) => n + 8)}>Show more ({trades.length - shown})</button>}

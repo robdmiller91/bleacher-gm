@@ -144,3 +144,78 @@ function whyGet(t, pkg, mine, n) {
   if (pkg.some((a) => a.kind === "pick") && t.window === "Rebuilding") bits.push(`${t.name} is rebuilding`);
   return bits.join(" · ") || "Close in value";
 }
+
+// FantasyCalc's public feed of real trades (it allows browser requests). Each call returns only the
+// latest ~50 for one league setup, so ask for the setups closest to yours, a couple at a time and
+// only a few per refresh (it answers bursts with 429). Results are kept in this browser: fresh for an hour, and trades seen
+// before are kept for 60 days so the pool grows with each visit.
+const FC_TEAMS = [8, 10, 12, 14, 16];
+const FC_PPR = [0, 0.5, 1];
+
+function marketTrades(list) {
+  const asset = (a) => {
+    if (a.position === "PICK") {
+      const m = /FP_(\d{4})_(\d)/.exec(a.sleeperId || a.mflId || "");
+      return m ? { type: "pick", season: Number(m[1]), round: Number(m[2]) } : null;
+    }
+    return a.sleeperId ? { type: "player", id: String(a.sleeperId), name: a.name, pos: a.position } : null;
+  };
+  return (Array.isArray(list) ? list : []).map((t) => ({
+    id: `market-${t.id}`,
+    source: "market",
+    date: Date.parse(t.date) || 0,
+    format: { teams: t.numTeams, superflex: (t.numSuperflex || 0) > 0 || t.numQbs === 2, ppr: t.ppr, tep: t.tePremium || 0 },
+    sides: [t.side1, t.side2].map((s) => ({ assets: (s || []).map(asset).filter(Boolean) })),
+  })).filter((t) => t.sides.every((s) => s.assets.length));
+}
+
+const MARKET_KEY = "bgm-market-trades";
+const MARKET_FRESH = 60 * 60 * 1000;
+const MARKET_SETUPS = 8; // requests per refresh; FantasyCalc blocks an IP for a while after a burst
+const MARKET_KEEP = 60 * 86400000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function readMarket() {
+  try {
+    return JSON.parse(localStorage.getItem(MARKET_KEY)) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchMarketTrades(format = {}) {
+  const cached = readMarket();
+  const keep = (list) => list.filter((t) => Date.now() - t.date < MARKET_KEEP);
+  if (cached && Date.now() - cached.at < MARKET_FRESH) return { trades: keep(cached.trades), ok: cached.ok, of: cached.of, cached: true };
+
+  const sf = format.superflex ? 2 : 1;
+  const teams = format.teams || 12;
+  const ppr = format.ppr ?? 1;
+  const setups = [sf, 3 - sf]
+    .flatMap((qbs) => FC_TEAMS.flatMap((n) => FC_PPR.map((p) => ({ qbs, n, p }))))
+    .sort((a, b) => (a.qbs !== sf) - (b.qbs !== sf) || Math.abs(a.n - teams) - Math.abs(b.n - teams) || Math.abs(a.p - ppr) - Math.abs(b.p - ppr))
+    .slice(0, MARKET_SETUPS);
+  const lists = [];
+  let limited = false;
+  for (let i = 0; i < setups.length && !limited; i += 2) {
+    const batch = await Promise.all(
+      setups.slice(i, i + 2).map(({ qbs, n, p }) =>
+        fetch(`https://api.fantasycalc.com/trades?isDynasty=true&numQbs=${qbs}&numTeams=${n}&ppr=${p}`)
+          .then((r) => (r.status === 429 ? ((limited = true), []) : r.ok ? r.json() : []))
+          .catch(() => []),
+      ),
+    );
+    lists.push(...batch);
+    if (!limited) await sleep(400);
+  }
+
+  const seen = new Set();
+  const trades = keep([...marketTrades(lists.flat()), ...(cached?.trades || [])]).filter((t) => !seen.has(t.id) && seen.add(t.id));
+  const ok = lists.filter((l) => Array.isArray(l) && l.length).length;
+  try {
+    localStorage.setItem(MARKET_KEY, JSON.stringify({ at: Date.now(), ok, of: setups.length, trades: trades.slice(0, 4000) }));
+  } catch {
+    // storage full or blocked: still return this load's trades
+  }
+  return { trades, ok, of: setups.length, limited };
+}
