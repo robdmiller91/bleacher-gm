@@ -6,10 +6,11 @@ import { useApp } from "@/components/AppShell";
 import { Img, PageHead } from "@/components/ui";
 import { AssetPanel, PickIcon } from "@/components/assets";
 import RosterViewer from "@/components/RosterViewer";
+import TradeFinder from "@/components/TradeFinder";
 import { applyMoves, fmt, ordinal, teamAssets } from "@/lib/model";
 
 export default function Trade() {
-  const { data, openPlayer } = useApp();
+  const { data, openPlayer, leagueQuery } = useApp();
   const me = data.me ?? data.teams[0].rosterId;
   const others = data.teams.filter((t) => t.rosterId !== me);
   const [partner, setPartner] = useState(others[0]?.rosterId);
@@ -191,6 +192,21 @@ export default function Trade() {
           }
         />
       </div>
+
+      <TradeFinder
+        data={data}
+        me={me}
+        give={give}
+        get={get}
+        leagueQuery={leagueQuery}
+        onOpen={openPlayer}
+        onLoad={(s) => {
+          setPartner(s.partner);
+          setGive(s.give.map((a) => a.id));
+          setGet(s.get.map((a) => a.id));
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      />
     </>
   );
 }

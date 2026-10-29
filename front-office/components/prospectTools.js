@@ -5,6 +5,8 @@ import { HeadToHead, Monogram, OutcomeBadge, TierBadge } from "./prospects";
 import { PROSPECT_CLASS, closestProfiles } from "@/lib/prospects";
 import { findPlayers, rankPlayers } from "@/lib/prospectQuery";
 import { leagueSummaryText } from "@/lib/leagueQuery";
+import { fmt } from "@/lib/model";
+import { Img, Pos } from "./ui";
 
 // ---------------------------------------------------------------------------
 // Cards shown under an answer: a head-to-head, a comp list or a single player
@@ -50,8 +52,32 @@ function PlayerCard({ x, onOpen }) {
   );
 }
 
-function Widget({ w, everyone, tierHits, onOpen }) {
+// An NFL player from the connected league: dynasty value, rank, age and production.
+function LeaguePlayerCard({ p, owner, onOpen }) {
+  return (
+    <button className="px-chat-card px-chat-player" onClick={() => onOpen?.(p.id)} style={{ "--t": "var(--accent)" }}>
+      <Img src={p.img} className="avatar" />
+      <span className="px-chat-row-name">
+        <b>{p.name}</b>
+        <span className="muted small">{p.team || "FA"} · {p.age ? `age ${Math.floor(p.age)}` : "age —"} · {owner}</span>
+      </span>
+      <Pos pos={p.pos} rank={p.posRank} />
+      <span className="px-chat-kv"><small>Value</small><b>{fmt(p.value)}</b></span>
+      <span className="px-chat-kv"><small>PPG</small><b>{p.ppg != null ? p.ppg.toFixed(1) : "—"}</b></span>
+      <span className="px-chat-kv"><small>30 days</small><b>{p.trend ? `${p.trend > 0 ? "+" : ""}${fmt(p.trend)}` : "0"}</b></span>
+    </button>
+  );
+}
+
+function Widget({ w, everyone, tierHits, onOpen, leagueData, onOpenLeague }) {
   const byId = (id) => everyone.find((x) => x.id === id);
+  if (w.type === "league") {
+    const p = leagueData?.players[w.id];
+    if (!p) return null;
+    const team = leagueData.teams.find((t) => t.rosterId === p.owner);
+    const owner = !p.owner ? "Free agent" : p.owner === leagueData.me ? "Your team" : team?.name || "Rostered";
+    return <LeaguePlayerCard p={p} owner={owner} onOpen={onOpenLeague} />;
+  }
   if (w.type === "compare") {
     const x = byId(w.a);
     const y = byId(w.b);
@@ -105,19 +131,66 @@ function RichText({ text, onOpen, onOpenLeague }) {
 
 const link = (x) => `[${x.name}](#p:${x.id})`;
 
-function localAnswer(question, everyone) {
-  const find = (s) => findPlayers(everyone, s.replace(/[?.!]+$/, "").replace(/^(the|a)\s+/i, "").trim(), { limit: 1 })[0];
+const leagueLink = (p) => `[${p.name}](#l:${p.id})`;
+const normName = (s) => (s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z0-9]/g, "");
+const clean = (s) => s.replace(/[?.!]+$/, "").replace(/^(the|a)\s+/i, "").trim();
+
+// NFL players in the connected league (rostered or free agents), exact name first, then every word, by value.
+function findLeaguePlayer(leagueData, s) {
+  if (!leagueData) return null;
+  const q = normName(s);
+  const words = s.toLowerCase().split(/\s+/).map(normName).filter(Boolean);
+  if (!q) return null;
+  const pool = Object.values(leagueData.players).filter((p) => p.pos !== "DEF");
+  return (
+    pool.find((p) => normName(p.name) === q) ||
+    pool.filter((p) => words.every((w) => normName(p.name).includes(w))).sort((a, b) => b.value - a.value)[0] ||
+    null
+  );
+}
+
+// A name can be a prospect (graded) or an NFL player in the league (valued); exact matches win.
+function resolve(s, everyone, leagueData) {
+  const name = clean(s);
+  const pr = findPlayers(everyone, name, { limit: 1 })[0] || null;
+  const lp = findLeaguePlayer(leagueData, name);
+  const exact = (n) => n && normName(n) === normName(name);
+  return { pr: pr && (exact(pr.name) || !exact(lp?.name)) ? pr : null, lp };
+}
+
+function compareAnswer(a, b, leagueData) {
+  if (a.pr && b.pr) {
+    const lead = a.pr.grade >= b.pr.grade ? [a.pr, b.pr] : [b.pr, a.pr];
+    return {
+      text: `${link(lead[0])} grades higher (${lead[0].grade.toFixed(2)} vs ${lead[1].grade.toFixed(2)}, ${lead[0].tier.label} vs ${lead[1].tier.label}). Head to head below.`,
+      widgets: [{ type: "compare", a: a.pr.id, b: b.pr.id }],
+    };
+  }
+  if (a.lp && b.lp) {
+    const lead = a.lp.value >= b.lp.value ? [a.lp, b.lp] : [b.lp, a.lp];
+    const ppg = (p) => (p.ppg != null ? `${p.ppg.toFixed(1)} ppg` : "no games yet");
+    return {
+      text: `${leagueLink(lead[0])} has the higher dynasty value (${fmt(lead[0].value)} vs ${fmt(lead[1].value)}).\n- ${leagueLink(lead[0])}: ${lead[0].pos}${lead[0].posRank || ""}, age ${lead[0].age ? Math.floor(lead[0].age) : "—"}, ${ppg(lead[0])}\n- ${leagueLink(lead[1])}: ${lead[1].pos}${lead[1].posRank || ""}, age ${lead[1].age ? Math.floor(lead[1].age) : "—"}, ${ppg(lead[1])}`,
+      widgets: [{ type: "league", id: a.lp.id }, { type: "league", id: b.lp.id }],
+    };
+  }
+  // One NFL player and one prospect: different measuring sticks, so show both side by side.
+  const side = (r) => (r.pr ? { text: `${link(r.pr)} is a ${r.pr.draftYear} prospect (${r.pr.tier.label}, grade ${r.pr.grade.toFixed(2)}, overall ${r.pr.overall.toFixed(1)})`, w: { type: "player", id: r.pr.id } } : { text: `${leagueLink(r.lp)} is an NFL ${r.lp.pos}${r.lp.posRank || ""} (dynasty value ${fmt(r.lp.value)}, age ${r.lp.age ? Math.floor(r.lp.age) : "—"})`, w: { type: "league", id: r.lp.id } });
+  const [x, y] = [side(a), side(b)];
+  return {
+    text: `${x.text}; ${y.text}. A prospect's grade and an NFL player's dynasty value aren't on the same scale, so here they are side by side. For a judgment call between them, copy the question to Claude.`,
+    widgets: [x.w, y.w],
+    handoff: true,
+  };
+}
+
+function localAnswer(question, everyone, leagueData) {
+  const find = (s) => findPlayers(everyone, clean(s), { limit: 1 })[0];
   let m = question.match(/compare\s+(.+?)\s+(?:and|vs\.?|versus|with|to)\s+(.+)/i) || question.match(/(.+?)\s+(?:vs\.?|versus)\s+(.+)/i);
   if (m) {
-    const a = find(m[1]);
-    const b = find(m[2]);
-    if (a && b) {
-      const lead = a.grade >= b.grade ? [a, b] : [b, a];
-      return {
-        text: `${link(lead[0])} grades higher (${lead[0].grade.toFixed(2)} vs ${lead[1].grade.toFixed(2)}, ${lead[0].tier.label} vs ${lead[1].tier.label}). Head to head below.`,
-        widgets: [{ type: "compare", a: a.id, b: b.id }],
-      };
-    }
+    const a = resolve(m[1], everyone, leagueData);
+    const b = resolve(m[2], everyone, leagueData);
+    if ((a.pr || a.lp) && (b.pr || b.lp)) return compareAnswer(a, b, leagueData);
   }
   m = question.match(/(?:like|similar to|comps? (?:for|to|of)|resembles?|compar(?:able|isons?) to|profiles? like)\s+(.+)/i);
   if (m) {
@@ -140,8 +213,9 @@ function localAnswer(question, everyone) {
       widgets: [],
     };
   }
-  const solo = find(question.replace(/^(who is|tell me about|show me|open)\s+/i, ""));
-  if (solo) return { text: `Here's ${link(solo)}:`, widgets: [{ type: "player", id: solo.id }] };
+  const solo = resolve(question.replace(/^(who is|tell me about|show me|open)\s+/i, ""), everyone, leagueData);
+  if (solo.pr) return { text: `Here's ${link(solo.pr)}:`, widgets: [{ type: "player", id: solo.pr.id }] };
+  if (solo.lp) return { text: `Here's ${leagueLink(solo.lp)}:`, widgets: [{ type: "league", id: solo.lp.id }] };
   return null;
 }
 
@@ -219,8 +293,8 @@ export function ChatDock({ everyone, tierHits, onOpen, onOpenLeague, context, le
         if (data.error !== "not_configured") return reply({ text: data.error || "Something went wrong. Try again.", error: true });
         setAiOff(true);
       }
-      const local = everyone.length ? localAnswer(text, everyone) : null;
-      if (local) reply(local);
+      const local = everyone.length || leagueData ? localAnswer(text, everyone, leagueData) : null;
+      if (local) reply({ ...local, handoff: local.handoff ? text : undefined });
       else reply({
         text: leagueData
           ? "That's one for Claude. Copy your question with a summary of your league (standings, playoff odds, your roster, pick values and the top prospects), then paste it into Claude."
@@ -275,7 +349,7 @@ export function ChatDock({ everyone, tierHits, onOpen, onOpenLeague, context, le
         {thread.map((t, i) => (
           <div key={i} className={`px-msg ${t.role}${t.error ? " error" : ""}`}>
             {t.role === "user" ? <p>{t.text}</p> : <RichText text={t.text} onOpen={openFromChat} onOpenLeague={onOpenLeague} />}
-            {(t.widgets || []).map((w, j) => <Widget key={j} w={w} everyone={everyone} tierHits={tierHits} onOpen={openFromChat} />)}
+            {(t.widgets || []).map((w, j) => <Widget key={j} w={w} everyone={everyone} tierHits={tierHits} onOpen={openFromChat} leagueData={leagueData} onOpenLeague={onOpenLeague} />)}
             {t.handoff != null && (
               <div className="px-handoff">
                 <button className="px-chip" onClick={() => copyForClaude(t.handoff, i)}>
