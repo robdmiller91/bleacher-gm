@@ -82,7 +82,9 @@ A chat panel docked to the bottom of every page (the "Ask the model" button; ⅓
 
 With a Sleeper league connected, it can also answer questions about your league: standings and playoff odds, every roster by position, who owns which draft picks and what each slot is worth, and strategy (for example "is it worth tanking for a better pick?").
 
-Free-form answers need an Anthropic API key:
+**Without a key (the current setup):** open-ended questions are handed off to Claude. The chat shows "Copy question + league summary" and "Open Claude" buttons, and the dock header has "Copy league summary". The summary covers the league settings, standings with playoff odds and positional ranks, your roster, your picks, first-round value by slot and the top 2027 prospects. It's built in `leagueSummaryText` in `lib/leagueQuery.js`. Paste it into claude.ai.
+
+To answer open-ended questions in the site itself instead, add an Anthropic API key (API use is billed separately from a Claude Pro plan):
 1. Create a key at console.anthropic.com and **set a monthly spend limit** there, because a public site lets anyone use it.
 2. Locally, put `ANTHROPIC_API_KEY=sk-ant-...` in a `.env.local` file in this folder (already covered by `.gitignore`), then restart `npm run dev`.
 3. On Vercel: Project → Settings → Environment Variables → add `ANTHROPIC_API_KEY`, then redeploy.

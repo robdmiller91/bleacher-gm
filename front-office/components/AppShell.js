@@ -329,6 +329,7 @@ export default function AppShell({ children }) {
         onOpen={openProspectFromChat}
         onOpenLeague={openLeaguePlayerFromChat}
         context={chatContext}
+        leagueData={leagueId ? data : null}
         size={dock}
         onSize={sizeDock}
       />

@@ -96,3 +96,50 @@ export function leaguePlayers(data, query, limit = 8) {
       owner: p.owner ? owner[p.owner] : "Free agent", ownerIsYou: p.owner === data.me,
     }));
 }
+
+// Plain-text snapshot of the league (plus the top of the prospect class) to paste into Claude.
+export function leagueSummaryText(data, { prospects = [], prospectClass, question } = {}) {
+  const o = leagueOverview(data);
+  const L = o.league;
+  const me = findTeam(data, "me");
+  const out = [];
+  if (question) out.push(`My question: ${question}`, "");
+  out.push(
+    `Below is a snapshot of my dynasty fantasy football league from my Bleacher GM site (Sleeper league data, FantasyCalc dynasty values: higher is better; ranks: 1 = strongest). Use it to answer my question${question ? "" : "s"}.`,
+    "",
+    `## League: ${L.name} (${L.season}, week ${L.currentWeek ?? "?"})`,
+    `${L.teams} teams, ${L.playoffTeams} make the playoffs (from week ${L.playoffWeekStart}). ${L.superflex ? "Superflex" : "1QB"}, ${L.ppr} PPR${L.tePremium ? `, TE premium +${L.tePremium}` : ""}. Starters: ${(L.rosterPositions || []).filter((p) => p !== "BN").join(", ")}.`,
+    `My team: ${o.yourTeam}`,
+    "",
+    "## Standings",
+    "Rank | Team | Record | PF | PA | Playoff odds | Window | Avg age | Value rank | QB/RB/WR/TE/Picks ranks",
+  );
+  for (const t of o.standings) {
+    const pr = t.positionRanks;
+    out.push(
+      `${t.standing} | ${t.team}${t.isYou ? " (me)" : ""} | ${t.record} | ${t.pointsFor ?? "-"} | ${t.pointsAgainst ?? "-"} | ${t.playoffOddsPct != null ? `${t.playoffOddsPct}%` : "-"} | ${t.window || "-"} | ${t.avgAge ?? "-"} | ${t.totalValueRank} | ${pr.QB}/${pr.RB}/${pr.WR}/${pr.TE}/${t.pickValueRank}`,
+    );
+  }
+  if (me) {
+    const d = teamDetail(data, me);
+    out.push("", `## My roster (${me.name})`);
+    const order = [...POSITIONS, ...Object.keys(d.roster).filter((p) => !POSITIONS.includes(p))];
+    for (const [pos, list] of order.filter((p) => d.roster[p]).map((p) => [p, d.roster[p]])) {
+      out.push(`${pos}: ${list.map((p) => `${p.name} (${[p.nflTeam, p.age && `age ${p.age}`, `value ${p.value}`, p.posRank, p.ppg != null && `${p.ppg} ppg`, p.injury, p.starting && "starter"].filter(Boolean).join(", ")})`).join("; ")}`);
+    }
+    out.push(`My picks: ${d.draftPicks.map((k) => `${k.pick} (${k.slot}${k.traded ? `, via ${k.originalOwner}` : ""}, value ${k.value})`).join("; ") || "none"}`);
+  }
+  const dp = draftPicks(data);
+  const slots = Object.entries(dp.firstRoundValueBySlot);
+  if (slots.length) {
+    out.push("", "## First-round pick value by slot");
+    for (const [season, bySlot] of slots) out.push(`${season}: ${Object.entries(bySlot).map(([s, v]) => `${s} = ${v}`).join(", ")}`);
+    out.push("(Future slots are projected from current standings, worst record first.)");
+  }
+  const top = prospects.filter((x) => x.draftYear === prospectClass).sort((a, b) => b.z - a.z).slice(0, 24);
+  if (top.length) {
+    out.push("", `## Top ${prospectClass} rookie prospects (BGM Prospect Score)`);
+    top.forEach((x, i) => out.push(`${i + 1}. ${x.name}, ${x.pos}, ${x.school}: ${x.tier.label}, overall ${x.overall.toFixed(1)}`));
+  }
+  return out.join("\n");
+}

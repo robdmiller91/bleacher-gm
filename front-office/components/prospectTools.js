@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { HeadToHead, Monogram, OutcomeBadge, TierBadge } from "./prospects";
 import { PROSPECT_CLASS, closestProfiles } from "@/lib/prospects";
 import { findPlayers, rankPlayers } from "@/lib/prospectQuery";
+import { leagueSummaryText } from "@/lib/leagueQuery";
 
 // ---------------------------------------------------------------------------
 // Cards shown under an answer: a head-to-head, a comp list or a single player
@@ -162,11 +163,14 @@ const SIZES = [["third", "⅓"], ["half", "½"], ["full", "Full"]];
 
 // A chat panel docked to the bottom of every page. Closed, it's an "Ask the model" button.
 // `context` carries the connected Sleeper league and user, so league questions can be answered.
-export function ChatDock({ everyone, tierHits, onOpen, onOpenLeague, context, size, onSize }) {
+// Without an API key, free-form questions are handed off to Claude: the question plus a
+// league summary (`leagueData`) is copied to paste into claude.ai.
+export function ChatDock({ everyone, tierHits, onOpen, onOpenLeague, context, leagueData, size, onSize }) {
   const [thread, setThread] = useState([]);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [aiOff, setAiOff] = useState(false);
+  const [copied, setCopied] = useState(null);
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -176,6 +180,19 @@ export function ChatDock({ everyone, tierHits, onOpen, onOpenLeague, context, si
   useEffect(() => {
     if (size !== "closed") inputRef.current?.focus();
   }, [size]);
+
+  const copyForClaude = async (question, key) => {
+    const text = leagueData
+      ? leagueSummaryText(leagueData, { prospects: everyone, prospectClass: PROSPECT_CLASS, question })
+      : question;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied((c) => (c === key ? null : c)), 2500);
+    } catch {
+      setCopied("failed");
+    }
+  };
 
   const openFromChat = (id) => {
     onOpen(id);
@@ -204,7 +221,12 @@ export function ChatDock({ everyone, tierHits, onOpen, onOpenLeague, context, si
       }
       const local = everyone.length ? localAnswer(text, everyone) : null;
       if (local) reply(local);
-      else reply({ text: "I can't answer free-form questions until the AI assistant is switched on (see the note below). Right now I can compare players (\"compare A and B\"), find comps (\"players like X\"), list the top players at a position, or pull up a player by name.", error: true });
+      else reply({
+        text: leagueData
+          ? "That's one for Claude. Copy your question with a summary of your league (standings, playoff odds, your roster, pick values and the top prospects), then paste it into Claude."
+          : "That's one for Claude. Copy your question and paste it into Claude. Here I can compare players (\"compare A and B\"), find comps (\"players like X\"), list the top players at a position, or pull up a player by name.",
+        handoff: text,
+      });
     } catch {
       reply({ text: "Couldn't reach the server. Try again.", error: true });
     } finally {
@@ -225,11 +247,16 @@ export function ChatDock({ everyone, tierHits, onOpen, onOpenLeague, context, si
       <header className="px-dock-head">
         <span className="px-dock-dot" />
         <b>Ask the model</b>
-        <span className="muted small">· your league, trades, picks, prospects, comparisons and comps{aiOff ? "" : ", via Claude"}</span>
+        <span className="muted small">· your league, trades, picks, prospects, comparisons and comps</span>
         <span className="px-dock-actions">
           <span className="px-seg">
             {SIZES.map(([k, l]) => <button key={k} className={size === k ? "on" : ""} onClick={() => onSize(k)}>{l}</button>)}
           </span>
+          {leagueData && (
+            <button className="px-dock-btn" onClick={() => copyForClaude("", "head")} title="Copy standings, playoff odds, your roster, pick values and top prospects to paste into Claude">
+              {copied === "head" ? "Copied ✓" : "Copy league summary"}
+            </button>
+          )}
           <button className="px-dock-btn" onClick={() => setThread([])} disabled={!thread.length}>Clear</button>
           <button className="px-dock-btn" onClick={() => onSize("closed")}>Close</button>
         </span>
@@ -249,12 +276,18 @@ export function ChatDock({ everyone, tierHits, onOpen, onOpenLeague, context, si
           <div key={i} className={`px-msg ${t.role}${t.error ? " error" : ""}`}>
             {t.role === "user" ? <p>{t.text}</p> : <RichText text={t.text} onOpen={openFromChat} onOpenLeague={onOpenLeague} />}
             {(t.widgets || []).map((w, j) => <Widget key={j} w={w} everyone={everyone} tierHits={tierHits} onOpen={openFromChat} />)}
+            {t.handoff != null && (
+              <div className="px-handoff">
+                <button className="px-chip" onClick={() => copyForClaude(t.handoff, i)}>
+                  {copied === i ? "Copied ✓" : leagueData ? "Copy question + league summary" : "Copy question"}
+                </button>
+                <a className="px-chip" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Open Claude ↗</a>
+              </div>
+            )}
           </div>
         ))}
         {busy && <div className="px-msg assistant"><span className="px-typing"><i /><i /><i /></span></div>}
-        {aiOff && thread.length > 0 && (
-          <p className="muted small" style={{ margin: 0 }}>The AI assistant isn't switched on (no ANTHROPIC_API_KEY), so free-form questions aren't answered yet. Comparisons, comps, top-N lists and player lookups still work.</p>
-        )}
+        {copied === "failed" && <p className="muted small" style={{ margin: 0 }}>Your browser blocked copying. Try again after clicking on the page.</p>}
       </div>
       <form
         className="px-dock-input"

@@ -1063,3 +1063,5 @@ select.px-pill.hot { background-image: none; padding-right: 1rem; }
   .rv-columns { grid-template-columns: 1fr; }
   .rv-modal { padding: 0.8rem; }
 }
+.px-handoff { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.px-handoff a.px-chip { text-decoration: none; }
