@@ -23,6 +23,11 @@ const PATHS = {
   history: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 7v5l3 2",
   star: "M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z",
   cap: "M2 9l10-5 10 5-10 5zM6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5M22 9v6",
+  draft: "M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18",
+  gear: "M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1",
+  dots: "M5 12h.01M12 12h.01M19 12h.01",
+  sound: "M11 5L6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13",
+  mute: "M11 5L6 9H3v6h3l5 4zM16 9l6 6M22 9l-6 6",
 };
 
 export function Icon({ name, size = 20 }) {

@@ -12,7 +12,7 @@ import { loadProspectData } from "@/lib/prospects";
 const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
-const LEAGUE_FREE = ["/", "/prospects"];
+const LEAGUE_FREE = ["/", "/prospects", "/mock-draft"];
 const DOCK_KEY = "bgm-chat-size";
 const DOCK_SIZES = ["closed", "third", "half", "full"];
 
@@ -24,6 +24,7 @@ const NAV = [
   { href: "/blueprint", label: "Blueprint", icon: "blueprint" },
   { href: "/league", label: "League", icon: "league" },
   { href: "/", label: "Prospects", icon: "cap" },
+  { href: "/mock-draft", label: "Mock Draft", icon: "draft" },
   { href: "/history", label: "History", icon: "history" },
 ];
 
