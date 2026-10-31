@@ -56,6 +56,8 @@ async function draftsFor(entry, names) {
         slot: slot || Number(p.pick_no),
         original,
         rosterId: actual,
+        // The manager who made the pick, so draft habits follow a person through team-name changes.
+        ownerId: (actual && names[actual]?.ownerId) || "",
         traded: original != null && actual != null && original !== actual,
         playerId: p.player_id ? String(p.player_id) : null,
         name: [m.first_name, m.last_name].filter(Boolean).join(" ") || "Unknown",

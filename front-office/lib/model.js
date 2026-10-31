@@ -7,6 +7,7 @@ export const FALLBACK_IMG = "/img/fallback.svg";
 
 export const POS_VAR = {
   QB: "var(--qb)", RB: "var(--rb)", WR: "var(--wr)", TE: "var(--te)",
+  DL: "var(--dl)", LB: "var(--lb)", DB: "var(--db)",
   PK: "var(--pk)", K: "var(--k)", DEF: "var(--k)",
 };
 

@@ -18,6 +18,9 @@
   --rb: #3b82f6;
   --wr: #f43f5e;
   --te: #a855f7;
+  --dl: #f97316;
+  --lb: #0ea5e9;
+  --db: #84cc16;
   --pk: #f59e0b;
   --k: #94a3b8;
   --good: #16a34a;
@@ -1338,3 +1341,15 @@ a.md-pl-name:hover { color: var(--accent); }
   .md-modal-x { margin: 0 0 0 auto; }
 }
 .md-cell.picked .md-cell-via.mine { color: #fff; }
+.md-badge.sm { min-width: 28px; height: 20px; font-size: 0.58rem; margin-left: 0.3rem; }
+.md-scout { display: grid; gap: 0.35rem; padding: 0.55rem 0.6rem; margin-bottom: 0.6rem; border-radius: 8px; background: var(--surface-2); font-size: 0.72rem; }
+.md-scout > div { display: flex; align-items: center; flex-wrap: wrap; gap: 0.15rem 0.45rem; }
+.md-scout > div > small:first-child { width: 62px; flex-shrink: 0; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.md-scout-recent span { font-size: 0.68rem; color: var(--muted); flex-basis: 100%; padding-left: 0; }
+.md-scout-recent { align-items: flex-start !important; }
+.md-lean { font-weight: 600; }
+.md-lean i { font-style: normal; font-weight: 700; }
+.md-good { color: var(--good); }
+.md-bad { color: var(--bad); }
+.md-log em { font-style: normal; font-size: 0.65rem; font-weight: 700; margin-left: 0.2rem; }
+.md-why { font-size: 0.64rem; color: var(--muted); font-style: italic; }

@@ -7,8 +7,9 @@ import { Monogram, TierBadge } from "@/components/prospects";
 import { heightLabel, parseCsv, POS_VAR } from "@/lib/model";
 import { PROSPECT_CLASS, loadProspectData } from "@/lib/prospects";
 import {
-  CPU_SPEEDS, CPU_STYLES, DEFAULT_SETTINGS, POSITIONS, RANKINGS, ROUND_COUNTS, SCORING, TEAM_COUNTS, TIMERS,
-  MAX_ROUNDS, autoChoice, buildPool, cpuChoice, defaultTeams, leagueSetup, pickLabel, pickOrder, timerLabel,
+  ALL_POSITIONS, CPU_SPEEDS, CPU_STYLES, DEFAULT_SETTINGS, RANKINGS, ROUND_COUNTS, SCORING, TEAM_COUNTS, TIMERS,
+  MAX_ROUNDS, autoChoice, buildPool, cpuChoice, defaultTeams, draftProfile, leagueSetup, leanSummary, pickLabel, pickOrder,
+  positionsFor, smartChoice, teamNeeds, timerLabel,
 } from "@/lib/mockDraft";
 
 // The whole mock lives in this browser, so a refresh (or a trip to a report card) picks up where you left off.
@@ -184,6 +185,16 @@ function SettingsModal({ state, locked, league, onApply, onClose, tab, setTab })
 
               <label className="md-label">CPU draft style</label>
               <SegRow value={s.cpuStyle} onChange={(v) => set("cpuStyle", v)} options={CPU_STYLES.map((r) => ({ v: r.key, a: r.label, b: r.sub }))} />
+              {s.cpuStyle === "smart" && (
+                <p className="muted small">
+                  {league
+                    ? `Each CPU drafts like its manager has in ${league.league.name}'s past rookie drafts: the positions they favour, when this league takes each position, and their roster needs today.`
+                    : "Connect a Sleeper league to use its draft history and roster needs. Without one, Smart CPUs follow ADP with light randomness."}
+                </p>
+              )}
+
+              <label className="md-label">IDP</label>
+              <Toggle on={s.idp} onChange={(v) => set("idp", v)} label="Include IDP (DL, LB, DB)" sub={`Adds the ${PROSPECT_CLASS} defensive class to the pool (public/data/idp_prospects_${PROSPECT_CLASS}.csv).`} />
 
               <label className="md-label">CPU pick speed</label>
               <SegRow value={s.cpuSpeed} onChange={(v) => set("cpuSpeed", v)} options={CPU_SPEEDS.map((r) => ({ v: r.key, a: r.label, b: `${r.ms / 1000}s` }))} />
@@ -208,7 +219,7 @@ function SettingsModal({ state, locked, league, onApply, onClose, tab, setTab })
               <SegRow disabled={locked} value={s.rounds} onChange={(v) => set("rounds", v)} options={ROUND_COUNTS.map((n) => ({ v: n, a: n, b: n === 1 ? "Round" : "Rounds" }))} />
               <label className="md-label">Position limits</label>
               <div className="md-limits">
-                {POSITIONS.map((p) => (
+                {positionsFor(s).map((p) => (
                   <label key={p} className="md-limit">
                     <span className="md-badge" style={{ "--c": POS_VAR[p] }}>{p}</span>
                     <input
@@ -242,7 +253,7 @@ function SettingsModal({ state, locked, league, onApply, onClose, tab, setTab })
                 <Toggle
                   on={sync}
                   onChange={setSync}
-                  label={`Sync with `}
+                  label={`Sync with ${league.league.name}`}
                   sub="Load the league's teams, 2027 order and current pick owners automatically. Turn off for a generic mock."
                 />
               )}
@@ -280,7 +291,7 @@ function SettingsModal({ state, locked, league, onApply, onClose, tab, setTab })
               <div className="md-add">
                 <input className="input" placeholder="Player name" value={add.name} onChange={(e) => setAdd({ ...add, name: e.target.value })} />
                 <select className="select" value={add.pos} onChange={(e) => setAdd({ ...add, pos: e.target.value })}>
-                  {POSITIONS.map((p) => <option key={p}>{p}</option>)}
+                  {ALL_POSITIONS.map((p) => <option key={p}>{p}</option>)}
                 </select>
                 <input className="input" placeholder="School" value={add.school} onChange={(e) => setAdd({ ...add, school: e.target.value })} />
                 <button
@@ -369,7 +380,8 @@ const SORTS = {
 };
 
 export default function MockDraft() {
-  const { data: league } = useApp();
+  const { data: league, leagueQuery } = useApp();
+  const [hist, setHist] = useState(null); // the league's past drafts, for Smart CPUs
   const [src, setSrc] = useState(null);
   const [error, setError] = useState(false);
   const [st, setSt] = useState(null);
@@ -384,8 +396,8 @@ export default function MockDraft() {
 
   useEffect(() => {
     const csv = (f) => fetch(`/data/${f}`).then((r) => (r.ok ? r.text() : "")).then(parseCsv);
-    Promise.all([loadProspectData(), csv("devy_prospects.csv"), csv(`mock_pool_${PROSPECT_CLASS}.csv`)])
-      .then(([d, consensus, depth]) => setSrc({ prospects: d.prospects, consensus: consensus.filter((r) => Number(r.Season) === PROSPECT_CLASS), depth }))
+    Promise.all([loadProspectData(), csv("devy_prospects.csv"), csv(`mock_pool_${PROSPECT_CLASS}.csv`), csv(`idp_prospects_${PROSPECT_CLASS}.csv`)])
+      .then(([d, consensus, depth, idp]) => setSrc({ prospects: d.prospects, consensus: consensus.filter((r) => Number(r.Season) === PROSPECT_CLASS), depth, idp }))
       .catch(() => setError(true));
     let saved = null;
     try {
@@ -409,14 +421,34 @@ export default function MockDraft() {
   // With a league connected, the board follows its real rookie draft: each slot's original team is the
   // column, and whoever owns the pick now makes the selection.
   useEffect(() => {
-    if (!league || !st || !st.sync || st.leagueId === league.league.id) return;
+    if (!league || !st || !st.sync) return;
+    // Boards saved before teams carried their Sleeper user reload once, so Smart CPUs know who's who.
+    if (st.leagueId === league.league.id && st.teams.every((t) => "ownerId" in t)) return;
     if (st.status !== "setup" || Object.values(st.picks).some((p) => !p.keeper)) return;
     const l = leagueSetup(league, PROSPECT_CLASS);
     if (!l) return;
     setSt((x) => ({ ...x, settings: { ...x.settings, ...l.settings }, teams: l.teams, owners: l.owners, claimed: l.claimed, picks: {}, leagueId: league.league.id }));
   }, [league, st]);
 
+  // Every past draft in the league (the History page's data), for how each manager drafts.
+  useEffect(() => {
+    if (!league || !leagueQuery) return;
+    let alive = true;
+    setHist(null);
+    fetch(`/api/history?${leagueQuery}`)
+      .then((r) => r.json())
+      .then((d) => alive && setHist(d.error ? { drafts: [] } : d))
+      .catch(() => alive && setHist({ drafts: [] }));
+    return () => {
+      alive = false;
+    };
+  }, [league, leagueQuery]);
+
   const s = st?.settings || DEFAULT_SETTINGS;
+  const synced = !!league && !!st?.sync && st?.leagueId === league.league.id;
+  const profile = useMemo(() => (synced && hist ? draftProfile(hist, s) : null), [synced, hist, s]);
+  const needs = useMemo(() => (synced ? teamNeeds(league) : {}), [synced, league]);
+  const positions = positionsFor(s);
   const order = useMemo(() => pickOrder(s), [s]);
   const pool = useMemo(() => (src ? buildPool({ ...src, custom: st?.custom || [] }, s) : []), [src, st?.custom, s]);
   const byId = useMemo(() => new Map(pool.map((p) => [p.id, p])), [pool]);
@@ -433,14 +465,15 @@ export default function MockDraft() {
   );
   const locked = !!st && st.status !== "setup" && Object.values(picks).some((p) => !p.keeper);
 
-  const makePick = useCallback((cell, player) => {
+  const makePick = useCallback((cell, player, why) => {
     if (!player) return;
     setDeadline(null);
     pausedLeft.current = null;
     setSt((x) => {
       if (x.picks[cell.key] || Object.values(x.picks).some((p) => p.id === player.id)) return x;
       const seq = Math.max(0, ...Object.values(x.picks).map((p) => p.seq)) + 1;
-      return { ...x, picks: { ...x.picks, [cell.key]: { id: player.id, seq } }, queue: x.queue.filter((id) => id !== player.id) };
+      const pick = why?.length ? { id: player.id, seq, why } : { id: player.id, seq };
+      return { ...x, picks: { ...x.picks, [cell.key]: pick }, queue: x.queue.filter((id) => id !== player.id) };
     });
   }, []);
 
@@ -455,7 +488,12 @@ export default function MockDraft() {
     const team = teamPlayers(currentOwner);
     if (!mineNow) {
       const ms = rush ? 60 : (CPU_SPEEDS.find((x) => x.key === s.cpuSpeed) || CPU_SPEEDS[2]).ms;
-      const t = setTimeout(() => makePick(current, cpuChoice(available, team, s)), ms);
+      const t = setTimeout(() => {
+        if (s.cpuStyle !== "smart") return makePick(current, cpuChoice(available, team, s));
+        const owner = st.teams[currentOwner]?.ownerId;
+        const pick = smartChoice(available, team, s, { profile, owner, need: needs[owner], round: current.round });
+        makePick(current, pick?.player, pick?.why);
+      }, ms);
       return () => clearTimeout(t);
     }
     setRush(false);
@@ -723,7 +761,7 @@ export default function MockDraft() {
               <input placeholder="Find player" value={ui.q} onChange={(e) => setU({ q: e.target.value })} />
             </div>
             <div className="md-pos-tabs">
-              {["ALL", ...POSITIONS].map((p) => (
+              {["ALL", ...positions].map((p) => (
                 <button key={p} className={ui.pos === p ? "on" : ""} style={p !== "ALL" ? { "--c": POS_VAR[p] } : undefined} onClick={() => setU({ pos: p })}>
                   <b>{p}</b>
                   <small>
@@ -865,6 +903,38 @@ export default function MockDraft() {
               <option key={i} value={i}>{t.name}{st.claimed.includes(i) ? " (you)" : ""}</option>
             ))}
           </select>
+          {(() => {
+            const owner = st.teams[resultsTeam]?.ownerId;
+            const read = leanSummary(profile, owner, positions);
+            const need = needs[owner];
+            const topNeeds = need ? positions.filter((p) => need[p] >= 0.3).sort((a, b) => need[b] - need[a]).slice(0, 3) : [];
+            const mine = order.filter((c) => ownerOf(c) === resultsTeam && picks[c.key] && !picks[c.key].keeper);
+            const delta = mine.length ? mine.reduce((sum, c) => sum + (c.overall - (byId.get(picks[c.key].id)?.adp ?? c.overall)), 0) / mine.length : null;
+            if (!read && !topNeeds.length && delta == null) return null;
+            return (
+              <div className="md-scout">
+                {topNeeds.length > 0 && (
+                  <div><small className="muted">Needs</small>{topNeeds.map((p) => <span key={p} className="md-badge sm" style={{ "--c": POS_VAR[p] }}>{p}</span>)}</div>
+                )}
+                {read && (
+                  <div title={`${read.picks} rookie picks since ${profile.seasons[profile.seasons.length - 1]}, recent seasons weighted more`}>
+                    <small className="muted">Drafts</small>
+                    {read.top.slice(0, 3).map((t) => <span key={t.pos} className="md-lean"><i style={{ color: POS_VAR[t.pos] }}>{t.pos}</i> {Math.round(t.share * 100)}%</span>)}
+                    {s.idp && <span className="md-lean">IDP {Math.round(read.idp * 100)}%</span>}
+                  </div>
+                )}
+                {read?.recent.length > 0 && (
+                  <div className="md-scout-recent">
+                    <small className="muted">Last picks</small>
+                    {read.recent.slice(0, 3).map((r, i) => <span key={i}>{r.season} R{r.round}: {r.name} ({r.pos})</span>)}
+                  </div>
+                )}
+                {delta != null && (
+                  <div><small className="muted">This mock</small><span className={delta >= 0 ? "md-good" : "md-bad"}>{delta >= 0 ? "+" : ""}{delta.toFixed(1)} spots vs ADP per pick</span></div>
+                )}
+              </div>
+            );
+          })()}
           <div className="md-results">
             {order
               .filter((c) => ownerOf(c) === resultsTeam)
@@ -891,13 +961,20 @@ export default function MockDraft() {
               log.map((c) => {
                 const pk = picks[c.key];
                 const p = byId.get(pk.id);
+                // Spots between where the player went and his ADP: positive is value, negative a reach.
+                const gap = p && !pk.keeper ? c.overall - p.adp : 0;
                 return (
                   <div key={c.key} className={`md-log-row${st.claimed.includes(ownerOf(c)) ? " mine" : ""}`}>
                     <span className="md-log-no">{pickLabel(c)}</span>
                     <span>
                       <small className="muted">{teamName(ownerOf(c))}{pk.keeper ? " kept" : " selected"}</small>
-                      <b>{p?.name || pk.id}</b>
+                      <b>
+                        {p?.name || pk.id}
+                        {gap >= 3 && <em className="md-good"> value +{gap}</em>}
+                        {gap <= -3 && <em className="md-bad"> reach {gap}</em>}
+                      </b>
                       <small><i style={{ color: POS_VAR[p?.pos] }}>{p?.pos}</i> {p?.school}</small>
+                      {pk.why?.length > 0 && <small className="md-why">Why: {pk.why.join(" · ")}</small>}
                     </span>
                   </div>
                 );
@@ -908,6 +985,15 @@ export default function MockDraft() {
                 <p>Start by adjusting any draft settings to fit your league. Claim the team(s) you want to draft for; every other team is a CPU drafting from the {(RANKINGS.find((r) => r.key === s.rankings) || RANKINGS[0]).label.toLowerCase()} rankings.</p>
                 <p>Set keepers or trade picks by clicking on the board before you start.</p>
                 {league && st.sync && <p>Loaded from {league.league.name}: columns are each slot's original team and → shows who owns the pick now. The current owner makes the selection.</p>}
+                {synced && s.cpuStyle === "smart" && (
+                  <p>
+                    {profile
+                      ? `Smart CPUs draft the way each manager has in ${profile.seasons.length} seasons of this league's rookie drafts (${profile.seasons[profile.seasons.length - 1]}–${profile.seasons[0]}), weighted toward recent years, adjusted for their roster needs today. Pick a team in Results to see its read.`
+                      : hist
+                        ? "No past rookie drafts found for this league, so Smart CPUs use ADP and roster need only."
+                        : "Reading this league's draft history…"}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -915,7 +1001,7 @@ export default function MockDraft() {
       </section>
 
       <p className="muted small" style={{ marginTop: "1rem" }}>
-        Columns show each slot's original team; → means the pick was traded and shows the team that makes the selection.         Pool: the graded {PROSPECT_CLASS} class (BGM Prospect Score), consensus rank from the RotoBaller and Dynasty Nerds rookie mocks, NFL board rank from Tankathon, and an ungraded depth list. Click a graded player to open their report card in a new tab.
+        Columns show each slot's original team; → means the pick was traded and shows the team that makes the selection.         Pool: the graded {PROSPECT_CLASS} class (BGM Prospect Score), consensus rank from the RotoBaller and Dynasty Nerds rookie mocks, NFL board rank from Tankathon, an ungraded depth list and, with IDP on, an ungraded DL/LB/DB list. Click a graded player to open their report card in a new tab.
       </p>
 
       {ui.settings && (
