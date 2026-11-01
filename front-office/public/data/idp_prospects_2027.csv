@@ -1,13 +1,52 @@
-Rank,Player,Position,School,Notes
-1,Dylan Stewart,DL,South Carolina,IDP add: not graded yet
-2,Colin Simmons,DL,Texas,IDP add: not graded yet
-3,Sammy Brown,LB,Clemson,IDP add: not graded yet
-4,KJ Bolden,DB,Georgia,IDP add: not graded yet
-5,Whit Weeks,LB,LSU,IDP add: not graded yet
-6,Leonard Moore,DB,Notre Dame,IDP add: not graded yet
-7,Taurean York,LB,Texas A&M,IDP add: not graded yet
-8,Ellis Robinson IV,DB,Georgia,IDP add: not graded yet
-9,Justin Scott,DL,Miami,IDP add: not graded yet
-10,LT Overton,DL,Alabama,IDP add: not graded yet
-11,Zabien Brown,DB,Alabama,IDP add: not graded yet
-12,Elijah Rushing,DL,Oregon,IDP add: not graded yet
+Rank,Player,Position,School,NFL Board,Notes
+1,Colin Simmons,DL,Texas,3,NFL Mock Draft DB consensus big board: EDGE
+2,Leonard Moore,DB,Notre Dame,4,NFL Mock Draft DB consensus big board: CB
+3,Dylan Stewart,DL,South Carolina,5,NFL Mock Draft DB consensus big board: EDGE
+4,Will Echoles,DL,Mississippi,11,NFL Mock Draft DB consensus big board: DL
+5,Ashton Hampton,DB,Clemson,14,NFL Mock Draft DB consensus big board: CB
+6,Ellis Robinson IV,DB,Georgia,16,NFL Mock Draft DB consensus big board: CB
+7,Chris Cole,LB,Georgia,18,NFL Mock Draft DB consensus big board: LB
+8,Yhonzae Pierre,DL,Alabama,23,NFL Mock Draft DB consensus big board: EDGE
+9,KJ Bolden,DB,Georgia,24,NFL Mock Draft DB consensus big board: S
+10,Xavier Gilliam,DL,Tennessee,25,NFL Mock Draft DB consensus big board: DL
+11,Kelley Jones,DB,Mississippi State,26,NFL Mock Draft DB consensus big board: CB
+12,David Stone,DL,Oklahoma,28,NFL Mock Draft DB consensus big board: DL
+13,Brauntae Johnson,DB,Notre Dame,31,NFL Mock Draft DB consensus big board: S
+14,A'Mauri Washington,DL,Oregon,33,NFL Mock Draft DB consensus big board: DL
+15,Kyngstonn Viliamu-Asa,LB,Notre Dame,38,NFL Mock Draft DB consensus big board: LB
+16,Kingston Lopa,DB,California,41,NFL Mock Draft DB consensus big board: S
+17,Boubacar Traore,DL,Notre Dame,42,NFL Mock Draft DB consensus big board: EDGE
+18,Justin Scott,DL,Miami (FL),43,NFL Mock Draft DB consensus big board: DL
+19,Devan Thompkins,DL,Alabama,45,NFL Mock Draft DB consensus big board: DL
+20,Zabien Brown,DB,Alabama,46,NFL Mock Draft DB consensus big board: CB
+21,Will Heldt,DL,Clemson,48,NFL Mock Draft DB consensus big board: EDGE
+22,Sammy Brown,LB,Clemson,51,NFL Mock Draft DB consensus big board: LB
+23,Ahmad Moten Sr.,DL,Miami (FL),52,NFL Mock Draft DB consensus big board: DL
+24,Kenyatta Jackson,DL,Ohio State,56,NFL Mock Draft DB consensus big board: EDGE
+25,Jelani McDonald,DB,Texas,57,NFL Mock Draft DB consensus big board: S
+26,Matayo Uiagalelei,DL,Oregon,58,NFL Mock Draft DB consensus big board: EDGE
+27,Clev Lubin,DL,Louisville,61,NFL Mock Draft DB consensus big board: EDGE
+28,Princewill Umanmielen,DL,LSU,62,NFL Mock Draft DB consensus big board: EDGE
+29,Vicari Swain,DB,South Carolina,63,NFL Mock Draft DB consensus big board: CB
+30,Jaylen McClain,DB,Ohio State,67,NFL Mock Draft DB consensus big board: S
+31,Quincy Rhodes Jr.,DL,Arkansas,68,NFL Mock Draft DB consensus big board: EDGE
+32,Ty Benefield,DB,LSU,70,NFL Mock Draft DB consensus big board: S
+33,Tavion Gadson,DL,Kentucky,71,NFL Mock Draft DB consensus big board: DL
+34,Damon Wilson Jr.,DL,Miami (FL),72,NFL Mock Draft DB consensus big board: EDGE
+35,Zach Lutmer,DB,Iowa,73,NFL Mock Draft DB consensus big board: S
+36,Audavion Collins,DB,Penn State,74,NFL Mock Draft DB consensus big board: CB
+37,Jordan Ross,DL,LSU,75,NFL Mock Draft DB consensus big board: EDGE
+38,Rasheem Biles,LB,Texas,76,NFL Mock Draft DB consensus big board: LB
+39,Bear Alexander,DL,Oregon,78,NFL Mock Draft DB consensus big board: DL
+40,A.J. Holmes Jr,DL,Texas Tech,81,NFL Mock Draft DB consensus big board: DL
+41,Koi Perich,DB,Oregon,84,NFL Mock Draft DB consensus big board: S
+42,OJ Frederique Jr.,DB,Miami (FL),85,NFL Mock Draft DB consensus big board: CB
+43,Tony Rojas,LB,Penn State,86,NFL Mock Draft DB consensus big board: LB
+44,Jyaire Hill,DB,Michigan,89,NFL Mock Draft DB consensus big board: CB
+45,DJ McKinney,DB,Notre Dame,90,NFL Mock Draft DB consensus big board: CB
+46,Jamari Sharpe,DB,Indiana,91,NFL Mock Draft DB consensus big board: CB
+47,Bray Hubbard,DB,Alabama,92,NFL Mock Draft DB consensus big board: S
+48,Jide Abasiri,DL,USC,93,NFL Mock Draft DB consensus big board: DL
+49,Sahir West,DL,UCLA,95,NFL Mock Draft DB consensus big board: EDGE
+50,Suntarine Perkins,LB,Mississippi,99,NFL Mock Draft DB consensus big board: LB
+51,Emmanuel Oyebadejo,DL,Florida,100,NFL Mock Draft DB consensus big board: DL

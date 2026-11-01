@@ -6,11 +6,18 @@ import { Icon, Img } from "@/components/ui";
 import { Monogram, TierBadge } from "@/components/prospects";
 import { heightLabel, parseCsv, POS_VAR } from "@/lib/model";
 import { PROSPECT_CLASS, loadProspectData } from "@/lib/prospects";
+import { BOARD_SOURCES, mergeBoards } from "@/lib/rookieBoards";
 import {
-  ALL_POSITIONS, CPU_SPEEDS, CPU_STYLES, DEFAULT_SETTINGS, RANKINGS, ROUND_COUNTS, SCORING, TEAM_COUNTS, TIMERS,
-  MAX_ROUNDS, autoChoice, buildPool, cpuChoice, defaultTeams, draftProfile, leagueSetup, leanSummary, pickLabel, pickOrder,
+  ALL_POSITIONS, CPU_SPEEDS, IDP_POSITIONS, CPU_STYLES, DEFAULT_SETTINGS, RANKINGS, ROUND_COUNTS, SCORING, TEAM_COUNTS, TIMERS,
+  MAX_ROUNDS, autoChoice, buildPool, cpuChoice, defaultTeams, draftProfile, leagueSetup, leanSummary, normPos, pickLabel, pickOrder,
   positionsFor, smartChoice, teamNeeds, timerLabel,
 } from "@/lib/mockDraft";
+
+// Each outside board's rank for a player, for the consensus column's tooltip. Mocks read as picks.
+const boardLine = (p) =>
+  BOARD_SOURCES.filter((b) => p.ranks?.[b.key])
+    .map((b) => `${b.label}: ${b.mock ? `${Math.ceil(p.ranks[b.key] / 12)}.${String(((p.ranks[b.key] - 1) % 12) + 1).padStart(2, "0")}` : `#${p.ranks[b.key]}`}`)
+    .join("\n") || undefined;
 
 // The whole mock lives in this browser, so a refresh (or a trip to a report card) picks up where you left off.
 const SAVE_KEY = `bgm-mock-${PROSPECT_CLASS}`;
@@ -194,7 +201,7 @@ function SettingsModal({ state, locked, league, onApply, onClose, tab, setTab })
               )}
 
               <label className="md-label">IDP</label>
-              <Toggle on={s.idp} onChange={(v) => set("idp", v)} label="Include IDP (DL, LB, DB)" sub={`Adds the ${PROSPECT_CLASS} defensive class to the pool (public/data/idp_prospects_${PROSPECT_CLASS}.csv).`} />
+              <Toggle on={s.idp} onChange={(v) => set("idp", v)} label="Include IDP (DL, LB, DB)" sub={`Adds the ${PROSPECT_CLASS} defenders from the NFL Mock Draft DB consensus big board, in board order.`} />
 
               <label className="md-label">CPU pick speed</label>
               <SegRow value={s.cpuSpeed} onChange={(v) => set("cpuSpeed", v)} options={CPU_SPEEDS.map((r) => ({ v: r.key, a: r.label, b: `${r.ms / 1000}s` }))} />
@@ -286,7 +293,7 @@ function SettingsModal({ state, locked, league, onApply, onClose, tab, setTab })
             <>
               <h3>Player Pool</h3>
               <p className="muted small">
-                The pool is the graded {PROSPECT_CLASS} class plus a depth list (public/data/mock_pool_{PROSPECT_CLASS}.csv). Add anyone else here; they go to the back of the board until you draft them.
+                The pool is the graded {PROSPECT_CLASS} class plus everyone on the outside rookie boards. Add anyone else here; they go to the back of the board until you draft them.
               </p>
               <div className="md-add">
                 <input className="input" placeholder="Player name" value={add.name} onChange={(e) => setAdd({ ...add, name: e.target.value })} />
@@ -383,6 +390,7 @@ export default function MockDraft() {
   const { data: league, leagueQuery } = useApp();
   const [hist, setHist] = useState(null); // the league's past drafts, for Smart CPUs
   const [src, setSrc] = useState(null);
+  const [live, setLive] = useState(null); // today's read of the outside boards
   const [error, setError] = useState(false);
   const [st, setSt] = useState(null);
   const [now, setNow] = useState(Date.now());
@@ -396,9 +404,14 @@ export default function MockDraft() {
 
   useEffect(() => {
     const csv = (f) => fetch(`/data/${f}`).then((r) => (r.ok ? r.text() : "")).then(parseCsv);
-    Promise.all([loadProspectData(), csv("devy_prospects.csv"), csv(`mock_pool_${PROSPECT_CLASS}.csv`), csv(`idp_prospects_${PROSPECT_CLASS}.csv`)])
-      .then(([d, consensus, depth, idp]) => setSrc({ prospects: d.prospects, consensus: consensus.filter((r) => Number(r.Season) === PROSPECT_CLASS), depth, idp }))
+    // The boards snapshot loads first; the live refresh (NFL Mock Draft DB, Dynasty Nerds) swaps in when it lands.
+    Promise.all([loadProspectData(), csv(`rookie_boards_${PROSPECT_CLASS}.csv`), csv(`idp_prospects_${PROSPECT_CLASS}.csv`)])
+      .then(([d, boards, idp]) => setSrc({ prospects: d.prospects, snapshot: boards, idpCsv: idp }))
       .catch(() => setError(true));
+    fetch("/api/rookie-boards")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setLive(d))
+      .catch(() => {});
     let saved = null;
     try {
       saved = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -450,7 +463,15 @@ export default function MockDraft() {
   const needs = useMemo(() => (synced ? teamNeeds(league) : {}), [synced, league]);
   const positions = positionsFor(s);
   const order = useMemo(() => pickOrder(s), [s]);
-  const pool = useMemo(() => (src ? buildPool({ ...src, custom: st?.custom || [] }, s) : []), [src, st?.custom, s]);
+  const boards = useMemo(() => (src ? mergeBoards(src.snapshot, live?.lists, live?.nfl) : []), [src, live]);
+  const idp = useMemo(() => {
+    if (!src) return [];
+    const fromLive = (live?.nfl || []).filter((p) => IDP_POSITIONS.includes(normPos(p.pos)));
+    return fromLive.length >= 12
+      ? fromLive.map((p, i) => ({ Rank: i + 1, Player: p.name, Position: p.pos, School: p.school, "NFL Board": p.rank }))
+      : src.idpCsv;
+  }, [src, live]);
+  const pool = useMemo(() => (src ? buildPool({ prospects: src.prospects, boards, idp, custom: st?.custom || [] }, s) : []), [src, boards, idp, st?.custom, s]);
   const byId = useMemo(() => new Map(pool.map((p) => [p.id, p])), [pool]);
   const picks = st?.picks || {};
   const drafted = useMemo(() => new Set(Object.values(picks).map((p) => p.id)), [picks]);
@@ -789,7 +810,7 @@ export default function MockDraft() {
                   <th />
                   <th>TIER</th>
                   {[["cons", "CONS"], ["bgm", "BGM"], ["nfl", "NFL"], ["age", "AGE"]].map(([k, l]) => (
-                    <th key={k} className={`sortable${ui.sort === k ? " on" : ""}`} onClick={() => setU({ sort: k })} title={{ cons: "Consensus rookie-mock rank", bgm: "BGM Prospect Score (Overall)", nfl: "NFL big-board rank (projected draft capital)", age: "Age on draft day" }[k]}>
+                    <th key={k} className={`sortable${ui.sort === k ? " on" : ""}`} onClick={() => setU({ sort: k })} title={{ cons: "Consensus of the outside rookie boards (hover a number for each source)", bgm: "BGM Prospect Score (Overall)", nfl: "NFL big-board rank (projected draft capital)", age: "Age on draft day" }[k]}>
                       {l}
                     </th>
                   ))}
@@ -823,7 +844,7 @@ export default function MockDraft() {
                             )}
                             <small>
                               <i style={{ color: POS_VAR[p.pos] }}>{p.pos}</i> {p.school}
-                              {p.depth ? " · depth" : p.custom ? " · added" : ""}
+                              {p.custom ? " · added" : ""}
                             </small>
                           </span>
                         </div>
@@ -834,7 +855,7 @@ export default function MockDraft() {
                         </button>
                       </td>
                       <td>{p.x ? <TierBadge tier={p.x.tier} small /> : <span className="muted">—</span>}</td>
-                      <td className="num">{p.cons ?? "—"}</td>
+                      <td className="num" title={boardLine(p)}>{p.cons ?? "—"}</td>
                       <td className="num">{p.bgm != null ? p.bgm.toFixed(1) : "—"}</td>
                       <td className="num">{p.nfl ?? "—"}</td>
                       <td className="num">{p.x ? p.x.draftAge.toFixed(1) : "—"}</td>
@@ -1001,7 +1022,16 @@ export default function MockDraft() {
       </section>
 
       <p className="muted small" style={{ marginTop: "1rem" }}>
-        Columns show each slot's original team; → means the pick was traded and shows the team that makes the selection.         Pool: the graded {PROSPECT_CLASS} class (BGM Prospect Score), consensus rank from the RotoBaller and Dynasty Nerds rookie mocks, NFL board rank from Tankathon, an ungraded depth list and, with IDP on, an ungraded DL/LB/DB list. Click a graded player to open their report card in a new tab.
+        Columns show each slot's original team; → means the pick was traded and shows the team that makes the selection. Pool: the graded {PROSPECT_CLASS} class (BGM Prospect Score) plus every player on the outside boards below. CONS blends them (superflex boards count fully in superflex leagues, 1QB boards in 1QB leagues); hover a CONS number to see each source. NFL is the NFL Mock Draft DB consensus big board, which also supplies the IDP pool. Click a graded player to open their report card in a new tab.
+        <br />
+        Boards:{" "}
+        {BOARD_SOURCES.map((b, i) => (
+          <span key={b.key}>
+            {i > 0 && " · "}
+            <a href={b.url} target="_blank" rel="noopener noreferrer">{b.label}</a> ({b.sub}{b.live ? (live?.lists?.[b.key] ? ", live" : ", snapshot") : ", snapshot"})
+          </span>
+        ))}
+        {live?.fetched ? ` — refreshed ${new Date(live.fetched).toLocaleString()}` : " — showing the saved snapshot"}
       </p>
 
       {ui.settings && (

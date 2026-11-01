@@ -2,6 +2,7 @@
 // Modelled on Sleeper's mock draft room. Everything runs in the browser.
 
 import { slug } from "./prospects";
+import { boardConsensus, boardKey } from "./rookieBoards";
 
 export const POSITIONS = ["QB", "RB", "WR", "TE"];
 export const IDP_POSITIONS = ["DL", "LB", "DB"];
@@ -37,7 +38,7 @@ export const SCORING = [
   { key: "sftep", label: "Superflex TE Premium", mult: { QB: 0.4, TE: 0.7 }, superflex: true },
 ];
 export const RANKINGS = [
-  { key: "consensus", label: "Consensus", sub: "Rookie mocks" },
+  { key: "consensus", label: "Consensus", sub: "Rookie boards" },
   { key: "bgm", label: "BGM Score", sub: "Our model" },
   { key: "nfl", label: "NFL Board", sub: "Draft capital" },
 ];
@@ -91,25 +92,29 @@ export function pickOrder(s) {
 }
 export const pickLabel = (c) => `${c.round}.${c.inRound}`;
 
-// The draft pool: the graded class, then the depth list, then anything added by hand.
-// Each player gets an ADP for the chosen rankings and scoring.
-export function buildPool({ prospects, consensus, depth, idp = [], custom }, s) {
-  const consRank = {};
-  for (const r of consensus) if (r.Player) consRank[slug(r.Player)] = Number(r["Consensus Rank"]) || null;
+// The draft pool: the graded class, then everyone else on the outside rookie boards, then anything
+// added by hand. Each player gets an ADP for the chosen rankings and scoring.
+export function buildPool({ prospects, boards = [], idp = [], custom }, s) {
+  const scoring = SCORING.find((x) => x.key === s.scoring) || SCORING[0];
+  const ranked = boardConsensus(boards, !!scoring.superflex);
+  const onBoard = Object.fromEntries(ranked.map((r) => [r.key, r]));
   const list = [];
   const seen = new Set();
   const add = (p) => {
-    if (seen.has(p.id)) return;
+    const k = boardKey(p.name);
+    if (seen.has(p.id) || seen.has(k)) return;
     seen.add(p.id);
+    seen.add(k);
     list.push(p);
   };
   for (const x of prospects) {
-    add({ id: x.id, name: x.name, pos: x.pos, school: x.school, color: x.color, img: x.img, x, cons: consRank[x.id] ?? null, nfl: x.boardRank ?? null, bgm: x.overall });
+    const b = onBoard[boardKey(x.name)];
+    add({ id: x.id, name: x.name, pos: x.pos, school: x.school, color: x.color, img: x.img, x, cons: b?.cons ?? null, nfl: b?.nfl ?? x.boardRank ?? null, bgm: x.overall, ranks: b?.ranks });
   }
-  depth
-    .filter((r) => r.Player && POSITIONS.includes((r.Position || "").toUpperCase()))
-    .sort((a, b) => Number(a.Rank) - Number(b.Rank))
-    .forEach((r) => add({ id: slug(r.Player), name: r.Player, pos: r.Position.toUpperCase(), school: r.School, cons: null, nfl: null, bgm: null, depth: true }));
+  for (const r of ranked) {
+    const pos = normPos(r.pos);
+    if (POSITIONS.includes(pos)) add({ id: slug(r.name), name: r.name, pos, school: r.school, cons: r.cons, nfl: r.nfl ?? null, bgm: null, ranks: r.ranks });
+  }
   for (const c of custom.filter((c) => POSITIONS.includes(c.pos))) add({ id: `c-${slug(c.name)}`, name: c.name, pos: c.pos, school: c.school, cons: null, nfl: null, bgm: null, custom: true });
   // Defenders have their own list and are slotted into the board below.
   const defenders = [];
@@ -117,7 +122,7 @@ export function buildPool({ prospects, consensus, depth, idp = [], custom }, s) 
     idp
       .filter((r) => r.Player && IDP_POSITIONS.includes(normPos(r.Position)))
       .sort((a, b) => Number(a.Rank) - Number(b.Rank))
-      .forEach((r) => defenders.push({ id: slug(r.Player), name: r.Player, pos: normPos(r.Position), school: r.School, cons: null, nfl: null, bgm: null, depth: true }));
+      .forEach((r) => defenders.push({ id: slug(r.Player), name: r.Player, pos: normPos(r.Position), school: r.School, cons: null, nfl: Number(r["NFL Board"]) || null, bgm: null }));
     for (const c of custom.filter((c) => IDP_POSITIONS.includes(c.pos))) defenders.push({ id: `c-${slug(c.name)}`, name: c.name, pos: c.pos, school: c.school, cons: null, nfl: null, bgm: null, custom: true });
   }
 
@@ -137,7 +142,9 @@ export function buildPool({ prospects, consensus, depth, idp = [], custom }, s) 
     if (rb != null) return 1;
     return a.i - b.i;
   });
-  const mult = (SCORING.find((x) => x.key === s.scoring) || SCORING[0]).mult;
+  // The superflex boards already price QBs up, so the QB bump only applies to the other rankings.
+  const mult = { ...scoring.mult };
+  if (scoring.superflex && s.rankings === "consensus") delete mult.QB;
   // The best defender lands around the middle of round 2 in a 12-team draft, then one every ~2.5 spots.
   const idpRows = defenders.filter((p) => !seen.has(p.id)).map((p, i) => ({ p: { ...p, idpRank: i + 1 }, eff: IDP_START + i * IDP_GAP + 0.01 }));
   return base
