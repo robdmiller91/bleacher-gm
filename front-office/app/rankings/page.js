@@ -7,6 +7,8 @@ import { TIERS, fmt, teamLogo, tierFor } from "@/lib/model";
 
 const COLUMNS = [
   { key: "value", label: "Value" },
+  { key: "posRank", label: "Pos Rk", asc: true },
+  { key: "ppgRank", label: "Prod Rk", asc: true },
   { key: "trend", label: "30-Day" },
   { key: "age", label: "Age", asc: true },
   { key: "ppg", label: "FPTS/G" },
@@ -24,10 +26,18 @@ export default function Rankings() {
   const [sort, setSort] = useState({ key: "value", asc: false });
 
   const teamById = useMemo(() => Object.fromEntries(data.teams.map((t) => [t.rosterId, t])), [data]);
-  const base = useMemo(
-    () => Object.values(data.players).filter((p) => p.value > 0 && ["QB", "RB", "WR", "TE"].includes(p.pos)),
-    [data],
-  );
+  // Positional ranks come from this list, so they match the values on the page: Pos Rk orders each
+  // position by dynasty value, Prod Rk by FPTS/G under the league's scoring (2+ games only).
+  const base = useMemo(() => {
+    const list = Object.values(data.players).filter((p) => p.value > 0 && ["QB", "RB", "WR", "TE"].includes(p.pos));
+    const ranks = {};
+    for (const P of ["QB", "RB", "WR", "TE"]) {
+      const pool = list.filter((p) => p.pos === P);
+      [...pool].sort((a, b) => b.value - a.value).forEach((p, i) => (ranks[p.id] = { posRank: i + 1 }));
+      pool.filter((p) => p.gp >= 2 && p.ppg != null).sort((a, b) => b.ppg - a.ppg).forEach((p, i) => (ranks[p.id].ppgRank = i + 1));
+    }
+    return list.map((p) => ({ ...p, ppgRank: null, ...ranks[p.id] }));
+  }, [data]);
 
   // Heat thresholds per position so a TE isn't judged against WR volume.
   const heat = useMemo(() => {
@@ -133,6 +143,8 @@ export default function Rankings() {
                           </span>
                         </td>
                         <td className="c"><b>{fmt(p.value)}</b></td>
+                        <td className="c"><b style={{ color: `var(--${p.pos.toLowerCase()})` }}>{p.pos}{p.posRank}</b></td>
+                        <td className="c">{p.ppgRank ? <span className={`heat ${h.ppg(p.ppg)}`}>{p.pos}{p.ppgRank}</span> : <span className="muted">—</span>}</td>
                         <td className="c"><Trend value={p.trend} /></td>
                         <td className="c">{p.age ? Math.floor(p.age) : "—"}</td>
                         <td className="c"><span className={`heat ${p.gp >= 2 ? h.ppg(p.ppg) : "m"}`}>{p.ppg != null ? p.ppg.toFixed(1) : "—"}</span></td>
@@ -195,7 +207,7 @@ export default function Rankings() {
 
           <div className="card small muted">
             <b style={{ color: "var(--text)" }}>Tiers</b> break on dynasty value:{" "}
-            {TIERS.map((t) => `${t.key} ${t.min ? `${fmt(t.min)}+` : "rest"}`).join(" · ")}. Green/red cells compare players at the same position with 2+ games.
+            {TIERS.map((t) => `${t.key} ${t.min ? `${fmt(t.min)}+` : "rest"}`).join(" · ")}. <b style={{ color: "var(--text)" }}>Pos Rk</b> ranks each position by dynasty value; <b style={{ color: "var(--text)" }}>Prod Rk</b> by FPTS/G under your scoring, for players with 2+ games. Green/red cells compare players at the same position with 2+ games.
           </div>
         </aside>
       </div>
