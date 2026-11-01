@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useApp } from "@/components/AppShell";
 import { Img, PageHead } from "@/components/ui";
-import { POS_VAR, fmt } from "@/lib/model";
+import { POS_VAR, fmt, positionRanks } from "@/lib/model";
 
-function Column({ title, rank, color, rows }) {
+function Column({ title, rank, color, rows, ranks }) {
   const { openPlayer } = useApp();
   return (
     <div>
@@ -18,7 +18,15 @@ function Column({ title, rank, color, rows }) {
         r.p ? (
           <button key={r.id} className="col-row plink" style={{ width: "100%" }} onClick={() => openPlayer(r.id)}>
             <Img src={r.p.img} />
-            <span className="pname">{r.p.name}</span>
+            <span className="col-name">
+              <span className="pname">{r.p.name}</span>
+              {ranks[r.id] && (
+                <span className="col-rk" title="Pos Rk by dynasty value · Prod Rk by FPTS/G under your scoring (2+ games)">
+                  <b style={{ color: POS_VAR[r.p.pos] }}>{r.p.pos}{ranks[r.id].posRank}</b>
+                  {ranks[r.id].ppgRank ? ` · Prod ${r.p.pos}${ranks[r.id].ppgRank}` : ""}
+                </span>
+              )}
+            </span>
             <span className="v">{fmt(r.p.value)}</span>
           </button>
         ) : (
@@ -36,6 +44,7 @@ function Column({ title, rank, color, rows }) {
 export default function League() {
   const { data } = useApp();
   const [open, setOpen] = useState(() => new Set(data.me != null ? [data.me] : []));
+  const ranks = useMemo(() => positionRanks(data.players), [data]);
   const max = Math.max(...data.teams.map((t) => t.totalValue), 1);
   const toggle = (rid) =>
     setOpen((s) => {
@@ -47,7 +56,7 @@ export default function League() {
 
   return (
     <>
-      <PageHead title="League" accent="Power Rankings" sub="Total dynasty value: players plus draft capital. Open any franchise to compare position rooms, and click a player for details." />
+      <PageHead title="League" accent="Power Rankings" sub="Total dynasty value: players plus draft capital. Open any franchise to compare position rooms, and click a player for details. Each player shows their positional rank by value and, after 2+ games, by points per game." />
 
       {data.teams.map((t) => {
         const segs = [
@@ -80,11 +89,11 @@ export default function League() {
             </button>
             {isOpen && (
               <div className="franchise-body">
-                <Column title="QB" rank={t.QBRank} color={POS_VAR.QB} rows={col("QB")} />
-                <Column title="RB" rank={t.RBRank} color={POS_VAR.RB} rows={col("RB")} />
-                <Column title="WR" rank={t.WRRank} color={POS_VAR.WR} rows={col("WR")} />
-                <Column title="TE" rank={t.TERank} color={POS_VAR.TE} rows={col("TE")} />
-                <Column title="PICKS" rank={t.pickValueRank} color={POS_VAR.PK} rows={picks} />
+                <Column title="QB" rank={t.QBRank} color={POS_VAR.QB} rows={col("QB")} ranks={ranks} />
+                <Column title="RB" rank={t.RBRank} color={POS_VAR.RB} rows={col("RB")} ranks={ranks} />
+                <Column title="WR" rank={t.WRRank} color={POS_VAR.WR} rows={col("WR")} ranks={ranks} />
+                <Column title="TE" rank={t.TERank} color={POS_VAR.TE} rows={col("TE")} ranks={ranks} />
+                <Column title="PICKS" rank={t.pickValueRank} color={POS_VAR.PK} rows={picks} ranks={ranks} />
               </div>
             )}
           </div>

@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { useApp } from "@/components/AppShell";
 import { Img, PageHead, PlayerCell, Trend, heatScale } from "@/components/ui";
-import { TIERS, fmt, teamLogo, tierFor } from "@/lib/model";
+import { TIERS, fmt, positionRanks, teamLogo, tierFor } from "@/lib/model";
 
 const COLUMNS = [
   { key: "value", label: "Value" },
@@ -26,17 +26,10 @@ export default function Rankings() {
   const [sort, setSort] = useState({ key: "value", asc: false });
 
   const teamById = useMemo(() => Object.fromEntries(data.teams.map((t) => [t.rosterId, t])), [data]);
-  // Positional ranks come from this list, so they match the values on the page: Pos Rk orders each
-  // position by dynasty value, Prod Rk by FPTS/G under the league's scoring (2+ games only).
+  // Positional ranks (Pos Rk by value, Prod Rk by FPTS/G) are shared with League, so both pages agree.
   const base = useMemo(() => {
-    const list = Object.values(data.players).filter((p) => p.value > 0 && ["QB", "RB", "WR", "TE"].includes(p.pos));
-    const ranks = {};
-    for (const P of ["QB", "RB", "WR", "TE"]) {
-      const pool = list.filter((p) => p.pos === P);
-      [...pool].sort((a, b) => b.value - a.value).forEach((p, i) => (ranks[p.id] = { posRank: i + 1 }));
-      pool.filter((p) => p.gp >= 2 && p.ppg != null).sort((a, b) => b.ppg - a.ppg).forEach((p, i) => (ranks[p.id].ppgRank = i + 1));
-    }
-    return list.map((p) => ({ ...p, ppgRank: null, ...ranks[p.id] }));
+    const ranks = positionRanks(data.players);
+    return Object.values(data.players).filter((p) => ranks[p.id]).map((p) => ({ ...p, ...ranks[p.id] }));
   }, [data]);
 
   // Heat thresholds per position so a TE isn't judged against WR volume.

@@ -27,6 +27,19 @@ export function rankDesc(values) {
   return values.map((v) => 1 + values.filter((x) => x > v).length);
 }
 
+// Positional ranks for every QB/RB/WR/TE with value: posRank orders each position by dynasty value,
+// ppgRank by FPTS/G under the league's scoring (2+ games only, else null). Returns { id: { posRank, ppgRank } }.
+export function positionRanks(players) {
+  const list = Object.values(players).filter((p) => p.value > 0 && POSITIONS.includes(p.pos));
+  const ranks = {};
+  for (const P of POSITIONS) {
+    const pool = list.filter((p) => p.pos === P);
+    [...pool].sort((a, b) => b.value - a.value).forEach((p, i) => (ranks[p.id] = { posRank: i + 1, ppgRank: null }));
+    pool.filter((p) => p.gp >= 2 && p.ppg != null).sort((a, b) => b.ppg - a.ppg).forEach((p, i) => (ranks[p.id].ppgRank = i + 1));
+  }
+  return ranks;
+}
+
 export function quantile(arr, q) {
   const s = arr.filter((x) => x != null && !isNaN(x)).sort((a, b) => a - b);
   if (!s.length) return 0;
