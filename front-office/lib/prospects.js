@@ -387,6 +387,8 @@ function attachRooms(entries) {
 
 const isSkill = (r) => r.Player && METRICS[(r.Position || "").toUpperCase()];
 const sleeperImg = (id) => (id ? `https://sleepercdn.com/content/nfl/players/thumb/${id}.jpg` : null);
+// ESPN redirects a college profile to the NFL one once the player is drafted.
+export const espnUrl = (id) => (id ? `https://www.espn.com/college-football/player/_/id/${id}` : null);
 
 // Both the coming class and the past classes, graded together so crowded rooms see each other.
 export function buildAll(bioRows, seasonRows, histBio, histSeasons, now = Date.now()) {
@@ -577,13 +579,16 @@ function attachComps(list, history) {
 
 export async function loadProspectData() {
   const get = (f) => fetch(`/data/${f}`).then((r) => (r.ok ? r.text() : "")).then(parseCsv);
-  const [bio, seasons, hits, histBio, histSeasons] = await Promise.all([
+  const [bio, seasons, hits, histBio, histSeasons, espn] = await Promise.all([
     get(`prospects_${PROSPECT_CLASS}.csv`), get("prospect_seasons.csv"), get("prospect_hit_rates.csv"),
-    get("prospect_history.csv"), get("prospect_history_seasons.csv"),
+    get("prospect_history.csv"), get("prospect_history_seasons.csv"), get("espn_ids.csv"),
   ]);
   const { prospects, history } = buildAll(bio, seasons, histBio, histSeasons);
+  // Players without a Sleeper headshot link to their ESPN profile (a link only, never ESPN's photo).
+  const espnIds = Object.fromEntries(espn.map((r) => [slug(r.Player), r["ESPN Id"]]));
+  for (const x of [...prospects, ...history.filter((y) => !y.img)]) x.espnId = espnIds[slug(x.name)] || null;
   return {
-    prospects, hitRates: buildHitRates(hits), history,
+    prospects, hitRates: buildHitRates(hits), history, espnIds,
     tierHits: tierHitRates(history), hypeCard: hypeScorecard(history),
   };
 }

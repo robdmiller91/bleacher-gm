@@ -1358,6 +1358,8 @@ a.md-pl-name:hover { color: var(--accent); }
 .md-scout-head { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.9rem; }
 .md-scout-head h3 { margin: 0; }
 .md-scout-head small { color: var(--muted); }
+.px-espn { display: block; margin-top: 0.15rem; font-size: 0.75rem; color: var(--accent); text-decoration: none; }
+.px-espn:hover { text-decoration: underline; }
 .md-mono.big { width: 46px; height: 46px; font-size: 1.15rem; }
 .md-scout-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 0.5rem; margin-bottom: 0.4rem; }
 .md-scout-stats div { border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.6rem; }

@@ -5,7 +5,7 @@ import { Pos } from "./ui";
 import { fmt, heightLabel } from "@/lib/model";
 import {
   BREAKOUT_LABEL, HYPE_GAP, METRICS, OUTCOMES, PROSPECT_CLASS, PROSPECT_TIERS, ROOM_WEIGHT, ROUND_BUCKETS, ROUND_LABELS, TIER_CUTS, UNRANKED_RANK,
-  closestProfiles, dominatorOf, gradeFormula, gradeTone, letter, outcomeBucket, outcomeMix, tierRoundGrid,
+  closestProfiles, dominatorOf, espnUrl, gradeFormula, gradeTone, letter, outcomeBucket, outcomeMix, tierRoundGrid,
 } from "@/lib/prospects";
 
 const initials = (name) => name.replace(/\b(Jr|Sr|II|III|IV)\.?$/i, "").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("");
@@ -750,6 +750,7 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard
               <span>
                 <b>{x.school}</b>
                 <small>{x.draftYear} · {x.classShort}</small>
+                {x.espnId && <a className="px-espn" href={espnUrl(x.espnId)} target="_blank" rel="noopener noreferrer">ESPN profile ↗</a>}
               </span>
             </div>
             <div className="hl"><small>Overall</small><b>{x.overall.toFixed(1)}</b></div>

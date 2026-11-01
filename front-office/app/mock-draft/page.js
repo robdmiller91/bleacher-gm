@@ -5,7 +5,7 @@ import { useApp } from "@/components/AppShell";
 import { Icon, Img } from "@/components/ui";
 import { Monogram, TierBadge } from "@/components/prospects";
 import { heightLabel, parseCsv, POS_VAR } from "@/lib/model";
-import { PROSPECT_CLASS, loadProspectData } from "@/lib/prospects";
+import { PROSPECT_CLASS, espnUrl, loadProspectData, slug } from "@/lib/prospects";
 import { BOARD_SOURCES, mergeBoards } from "@/lib/rookieBoards";
 import {
   ALL_POSITIONS, CPU_SPEEDS, IDP_POSITIONS, CPU_STYLES, DEFAULT_SETTINGS, RANKINGS, ROUND_COUNTS, SCORING, TEAM_COUNTS, TIMERS,
@@ -334,7 +334,7 @@ function SettingsModal({ state, locked, league, onApply, onClose, tab, setTab })
 // Click a board cell before the draft to set a keeper there or hand the pick to another team.
 // Players without a BGM grade (defenders, names only on the outside boards, players added by hand)
 // still get a card: where every board has them and what's missing.
-function ScoutCard({ p, onClose }) {
+function ScoutCard({ p, espnId, onClose }) {
   const idp = IDP_POSITIONS.includes(p.pos);
   const sources = BOARD_SOURCES.map((b) => ({ ...b, rank: p.ranks?.[b.key] }));
   const mockPick = (r) => `${Math.ceil(r / 12)}.${String(((r - 1) % 12) + 1).padStart(2, "0")}`;
@@ -346,6 +346,7 @@ function ScoutCard({ p, onClose }) {
             <span className="md-mono big" style={{ "--c": POS_VAR[p.pos] }}>{p.name[0]}</span>
             <span>
               <h3>{p.name}</h3>
+              {espnId && <a className="px-espn" href={espnUrl(espnId)} target="_blank" rel="noopener noreferrer">ESPN profile ↗</a>}
               <small><i style={{ color: POS_VAR[p.pos] }}>{p.pos}</i> {p.school || "School unknown"}</small>
             </span>
           </div>
@@ -458,7 +459,7 @@ export default function MockDraft() {
     const csv = (f) => fetch(`/data/${f}`).then((r) => (r.ok ? r.text() : "")).then(parseCsv);
     // The boards snapshot loads first; the live refresh (NFL Mock Draft DB, Dynasty Nerds) swaps in when it lands.
     Promise.all([loadProspectData(), csv(`rookie_boards_${PROSPECT_CLASS}.csv`), csv(`idp_prospects_${PROSPECT_CLASS}.csv`)])
-      .then(([d, boards, idp]) => setSrc({ prospects: d.prospects, snapshot: boards, idpCsv: idp }))
+      .then(([d, boards, idp]) => setSrc({ prospects: d.prospects, espnIds: d.espnIds, snapshot: boards, idpCsv: idp }))
       .catch(() => setError(true));
     fetch("/api/rookie-boards")
       .then((r) => (r.ok ? r.json() : null))
@@ -1095,7 +1096,7 @@ export default function MockDraft() {
       {ui.settings && (
         <SettingsModal state={st} locked={locked} league={league} tab={ui.settings} setTab={(t) => setU({ settings: t })} onApply={applySettings} onClose={() => setU({ settings: null })} />
       )}
-      {ui.scout && byId.get(ui.scout) && <ScoutCard p={byId.get(ui.scout)} onClose={() => setU({ scout: null })} />}
+      {ui.scout && byId.get(ui.scout) && <ScoutCard p={byId.get(ui.scout)} espnId={src.espnIds[slug(byId.get(ui.scout).name)]} onClose={() => setU({ scout: null })} />}
       {ui.cell && (
         <CellModal
           cell={ui.cell}

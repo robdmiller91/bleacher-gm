@@ -57,7 +57,7 @@ Checked 21 Oct 2026. Re-check before charging money or passing the usage limits 
 | Tankathon 2027 big board | Board rank, used as projected draft capital | Read 26 Oct 2026, rank only. Replace with our own board before going commercial. |
 | nflverse (`nflverse-data` releases) | Past drafts, combine 40 times, birthdates, NFL seasons for hit rates and outcomes | CC BY 4.0: credit nflverse. |
 
-ESPN headshots and logos are not used: Disney's terms forbid reusing ESPN images.
+ESPN headshots and logos are not used: Disney's terms forbid reusing ESPN images. Prospects without a Sleeper headshot (the coming class, the few past players Sleeper lacks, and the mock draft's scouting cards) get an "ESPN profile ↗" link instead, from the ESPN player ids in `public/data/espn_ids.csv` (`Player,School,ESPN Id`; looked up once through ESPN's public search, 1 Nov 2026). Add a row there for a new player.
 
 ## BGM Prospect Score
 Our own model and labels. Its scoring scale (position grade ≈ 8–15, percentile Overall, Z-score, class tiers) was calibrated so our numbers line up with reference prospect scores we were shown. Across 30 reference players we're within 0.39 grade points and 0.9 Overall points on average. The reference scores are calibration targets only and aren't stored or shown. The formulas and thresholds are in `lib/prospects.js`, and the Glossary tab explains each input.
