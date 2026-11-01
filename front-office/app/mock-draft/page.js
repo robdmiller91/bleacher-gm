@@ -332,6 +332,58 @@ function SettingsModal({ state, locked, league, onApply, onClose, tab, setTab })
 }
 
 // Click a board cell before the draft to set a keeper there or hand the pick to another team.
+// Players without a BGM grade (defenders, names only on the outside boards, players added by hand)
+// still get a card: where every board has them and what's missing.
+function ScoutCard({ p, onClose }) {
+  const idp = IDP_POSITIONS.includes(p.pos);
+  const sources = BOARD_SOURCES.map((b) => ({ ...b, rank: p.ranks?.[b.key] }));
+  const mockPick = (r) => `${Math.ceil(r / 12)}.${String(((r - 1) % 12) + 1).padStart(2, "0")}`;
+  return (
+    <div className="md-modal-back" onMouseDown={onClose}>
+      <div className="md-modal small" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="md-modal-body">
+          <div className="md-scout-head">
+            <span className="md-mono big" style={{ "--c": POS_VAR[p.pos] }}>{p.name[0]}</span>
+            <span>
+              <h3>{p.name}</h3>
+              <small><i style={{ color: POS_VAR[p.pos] }}>{p.pos}</i> {p.school || "School unknown"}</small>
+            </span>
+          </div>
+          <div className="md-scout-stats">
+            <div><small>Mock ADP</small><b>{p.adp ?? "—"}</b></div>
+            <div><small>Consensus</small><b>{p.cons ?? "—"}</b></div>
+            <div><small>NFL Board</small><b>{p.nfl ? `#${p.nfl}` : "—"}</b></div>
+            {idp && <div><small>{p.pos} rank</small><b>{p.idpRank ?? "—"}</b></div>}
+          </div>
+          {!idp && !p.custom && (
+            <>
+              <label className="md-label">Rookie boards</label>
+              <div className="md-scout-src">
+                {sources.map((b) => (
+                  <a key={b.key} href={b.url} target="_blank" rel="noopener noreferrer">
+                    <span>{b.label}<small>{b.sub}</small></span>
+                    <b>{b.rank ? (b.mock ? mockPick(b.rank) : `#${b.rank}`) : "Not listed"}</b>
+                  </a>
+                ))}
+              </div>
+            </>
+          )}
+          <p className="muted small">
+            {idp
+              ? "The BGM Prospect Score grades QBs, RBs, WRs and TEs only, so defenders are ranked by the NFL Mock Draft DB consensus big board."
+              : p.custom
+                ? "Added by hand in Player Pool, so there's nothing on file for this player."
+                : "No college stats on file yet, so there's no BGM report card. Add the player to public/data/prospects_2027.csv and prospect_seasons.csv to grade them."}
+          </p>
+        </div>
+        <div className="md-modal-foot">
+          <button className="btn" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CellModal({ cell, state, pool, drafted, onSave, onClose }) {
   const [q, setQ] = useState("");
   const owner = state.owners[cell.key] ?? cell.col;
@@ -396,7 +448,7 @@ export default function MockDraft() {
   const [now, setNow] = useState(Date.now());
   const [deadline, setDeadline] = useState(null);
   const [rush, setRush] = useState(false);
-  const [ui, setUi] = useState({ pos: "ALL", q: "", watchOnly: false, showDrafted: false, sort: "rk", board: "normal", menu: false, settings: null, cell: null, results: null });
+  const [ui, setUi] = useState({ pos: "ALL", q: "", watchOnly: false, showDrafted: false, sort: "rk", board: "normal", menu: false, settings: null, cell: null, results: null, scout: null });
   const pausedLeft = useRef(null);
   const ring = useRef(null);
   const set = (patch) => setSt((s) => ({ ...s, ...(typeof patch === "function" ? patch(s) : patch) }));
@@ -484,6 +536,12 @@ export default function MockDraft() {
     (t) => order.filter((c) => ownerOf(c) === t && picks[c.key]).map((c) => byId.get(picks[c.key].id)).filter(Boolean),
     [order, ownerOf, picks, byId],
   );
+  // Graded players open their report card; everyone else gets the scouting card.
+  const openProfile = (p) => {
+    if (!p) return;
+    if (p.x) window.open(`/?p=${encodeURIComponent(p.id)}`, "_blank");
+    else setU({ scout: p.id });
+  };
   const locked = !!st && st.status !== "setup" && Object.values(picks).some((p) => !p.keeper);
 
   const makePick = useCallback((cell, player, why) => {
@@ -748,7 +806,7 @@ export default function MockDraft() {
                   style={p ? { "--c": POS_VAR[p.pos] } : undefined}
                   onClick={() => {
                     if (st.status === "setup") setU({ cell: c });
-                    else if (p?.x) window.open(`/?p=${encodeURIComponent(p.id)}`, "_blank");
+                    else openProfile(p);
                   }}
                   title={st.status === "setup" ? "Set a keeper or trade this pick" : p ? p.name : undefined}
                 >
@@ -840,7 +898,7 @@ export default function MockDraft() {
                             {p.x ? (
                               <a href={`/?p=${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer" className="md-pl-name">{p.name}</a>
                             ) : (
-                              <b className="md-pl-name">{p.name}</b>
+                              <button className="md-name-btn md-pl-name" onClick={() => openProfile(p)}>{p.name}</button>
                             )}
                             <small>
                               <i style={{ color: POS_VAR[p.pos] }}>{p.pos}</i> {p.school}
@@ -889,7 +947,7 @@ export default function MockDraft() {
                     <span className="md-q-no">{i + 1}</span>
                     <span className="md-badge" style={{ "--c": POS_VAR[p.pos] }}>{p.pos}</span>
                     <span className="md-q-name">
-                      <b>{p.name}</b>
+                      <button className="md-name-btn" onClick={() => openProfile(p)}><b>{p.name}</b></button>
                       <small>{p.school} · ADP {p.adp}</small>
                     </span>
                     {mineNow && st.status === "drafting" ? (
@@ -964,7 +1022,7 @@ export default function MockDraft() {
                 return (
                   <div key={c.key} className="md-res-row">
                     <span className="md-badge" style={{ "--c": p ? POS_VAR[p.pos] : "var(--muted)" }}>{p ? p.pos : `R${c.round}`}</span>
-                    <span className={p ? "" : "muted"}>{p ? p.name : "Empty"}</span>
+                    <span className={p ? "" : "muted"}>{p ? <button className="md-name-btn" onClick={() => openProfile(p)}>{p.name}</button> : "Empty"}</span>
                     <small className="muted">{pickLabel(c)}</small>
                   </div>
                 );
@@ -990,7 +1048,7 @@ export default function MockDraft() {
                     <span>
                       <small className="muted">{teamName(ownerOf(c))}{pk.keeper ? " kept" : " selected"}</small>
                       <b>
-                        {p?.name || pk.id}
+                        {p ? <button className="md-name-btn" onClick={() => openProfile(p)}>{p.name}</button> : pk.id}
                         {gap >= 3 && <em className="md-good"> value +{gap}</em>}
                         {gap <= -3 && <em className="md-bad"> reach {gap}</em>}
                       </b>
@@ -1037,6 +1095,7 @@ export default function MockDraft() {
       {ui.settings && (
         <SettingsModal state={st} locked={locked} league={league} tab={ui.settings} setTab={(t) => setU({ settings: t })} onApply={applySettings} onClose={() => setU({ settings: null })} />
       )}
+      {ui.scout && byId.get(ui.scout) && <ScoutCard p={byId.get(ui.scout)} onClose={() => setU({ scout: null })} />}
       {ui.cell && (
         <CellModal
           cell={ui.cell}

@@ -217,7 +217,7 @@ export default function Prospects() {
       )}
 
       <p className="muted small" style={{ marginTop: "1.6rem" }}>
-        College stats from ESPN. Past drafts, combine results, NFL fantasy finishes and NFL headshots from nflverse (CC BY 4.0) and Sleeper. {PROSPECT_CLASS} big-board ranks from Tankathon.
+        College stats from ESPN. Past drafts, combine results, NFL fantasy finishes and NFL headshots from nflverse (CC BY 4.0) and Sleeper. {PROSPECT_CLASS} big-board ranks from Tankathon and the NFL Mock Draft Database consensus board.
         The BGM Prospect Score is our own model.
       </p>
     </div>

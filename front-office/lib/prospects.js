@@ -397,7 +397,9 @@ export function buildAll(bioRows, seasonRows, histBio, histSeasons, now = Date.n
     ...histBio.filter(isSkill).map((r) => ({ id: r["Player Id"], pos: r.Position.toUpperCase(), counts: num(r.Round) <= 3, seasons: past[r["Player Id"]] || [] })),
   ]);
   const history = buildHistory(histBio, past, now);
-  return { prospects: buildProspects(bioRows, current, now), history };
+  const prospects = buildProspects(bioRows, current, now);
+  attachComps([...prospects, ...history], history);
+  return { prospects, history };
 }
 
 // The coming class: rows from prospects_<year>.csv and prospect_seasons.csv (by player id).
@@ -541,6 +543,36 @@ export function closestProfiles(x, list, n = 5) {
     .filter((c) => c.d < 99)
     .sort((a, b) => a.d - b.d)
     .slice(0, n);
+}
+
+
+// NFL comps for every prospect, from past players at the position whose grade profiles sit closest
+// (drafted 2018 on, so each comp is a real NFL career):
+//   ceiling - of the COMP_POOL nearest, the one whose career went best: the outcome if all goes right
+//   floor   - the nearest one who missed (no top-36 season in a complete four-year window)
+const COMP_POOL = 12;
+const finish = (y) => y.outcome.best ?? y.outcome.best4 ?? 999;
+const compOf = ({ y, d }, kind) => ({
+  id: y.id, name: y.name, draftYear: y.draftYear, pick: y.pick, school: y.school, d,
+  // Best positional finish in any NFL season so far.
+  label: y.outcome.best != null ? `${kind === "ceiling" ? "Peak" : "Best"} ${y.pos}${y.outcome.best}` : y.outcome.seasons ? "No top finishes" : "No NFL stats",
+});
+function attachComps(list, history) {
+  const known = history.filter((y) => y.outcome.best != null || y.outcome.complete);
+  for (const x of list) {
+    const near = closestProfiles(x, known.filter((y) => y.draftYear !== x.draftYear), COMP_POOL);
+    if (!near.length) {
+      x.comps = null;
+      continue;
+    }
+    const hits = near.filter((c) => finish(c.y) <= 24);
+    const ceiling = [...(hits.length ? hits : near)].sort((a, b) => finish(a.y) - finish(b.y) || a.d - b.d)[0];
+    const rest = near.filter((c) => c !== ceiling);
+    const floor =
+      rest.find((c) => c.y.outcome.complete && !(c.y.outcome.best4 <= 36)) ||
+      [...rest].sort((a, b) => finish(b.y) - finish(a.y) || a.d - b.d)[0];
+    x.comps = { ceiling: compOf(ceiling, "ceiling"), floor: floor ? compOf(floor, "floor") : null };
+  }
 }
 
 export async function loadProspectData() {

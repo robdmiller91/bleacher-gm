@@ -166,6 +166,24 @@ const peakDom = (x) => {
   return v.length ? Math.max(...v) : null;
 };
 
+// A real NFL player comp (see attachComps in lib/prospects.js); opens that player's card.
+function NflComp({ c, onOpen }) {
+  if (!c) return <span className="muted">—</span>;
+  return (
+    <button
+      className="px-nfl-comp"
+      title={`${c.name}: ${c.draftYear} draft${c.pick ? `, pick ${c.pick}` : ""}. ${c.label}.`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen?.(c.id);
+      }}
+    >
+      <b>{c.name}</b>
+      <small>{c.label}</small>
+    </button>
+  );
+}
+
 const COL = {
   pos: { key: "posRank", label: "Pos", get: (x) => x.posRank, show: (x) => <b style={{ color: `var(--${x.pos.toLowerCase()})` }}>{x.pos}{x.posRank}</b>, asc: true },
   classRk: { key: "posRank", label: "Class Rk", get: (x) => x.posRank, show: (x) => x.posRank, asc: true },
@@ -184,6 +202,8 @@ const COL = {
   hype: { key: "hype", label: "Model vs Hype", get: (x) => x.hype.gap, show: (x) => <HypeBadge x={x} /> },
   pick: { key: "pick", label: "NFL Pick", get: (x) => x.pick, show: pickLabel, asc: true },
   outcome: { key: "outcome", label: "NFL Outcome", get: (x) => (isPast(x) ? -(x.outcome.best4 ?? 999) : null), show: (x) => (isPast(x) ? <OutcomeBadge x={x} /> : <span className="muted small">Not drafted yet</span>) },
+  ceiling: { key: "ceiling", label: "Ceiling Comp", get: (x) => x.comps?.ceiling?.name, show: (x, onOpen) => <NflComp c={x.comps?.ceiling} onOpen={onOpen} />, asc: true },
+  floor: { key: "floor", label: "Floor Comp", get: (x) => x.comps?.floor?.name, show: (x, onOpen) => <NflComp c={x.comps?.floor} onOpen={onOpen} />, asc: true },
 };
 // Class sheet: rookie-draft order for one class.
 // Compact columns so the class sheet's overview fits a laptop screen without sideways scrolling.
@@ -197,9 +217,9 @@ const COMPACT = {
   archetype: { key: "archetype", label: "Archetype", get: (x) => x.archetype, show: (x) => <span className="px-profile">{x.archetype}</span> },
   type: { key: "build", label: "Type", get: (x) => x.build, show: (x) => <span className="px-profile">{x.build}</span> },
 };
-const SHEET_COLS = [COL.pos, COL.tier, COL.classTier, COL.z, COL.overall, COL.grade, COMPACT.size, COL.forty, COL.draftAge, COL.predraft, COMPACT.hype, COMPACT.archetype, COMPACT.type];
+const SHEET_COLS = [COL.pos, COL.tier, COL.classTier, COL.z, COL.overall, COL.grade, COMPACT.size, COL.forty, COL.draftAge, COL.predraft, COMPACT.hype, COMPACT.archetype, COMPACT.type, COL.ceiling, COL.floor];
 // Position rankings: every class at one position, by grade.
-const RANK_COLS = [COL.classRk, COL.tier, COL.overall, COL.grade, COL.type, COL.archetype, COL.height, COL.weight, COL.forty, COL.draftAge, COL.predraft, COL.pick, COL.outcome];
+const RANK_COLS = [COL.classRk, COL.tier, COL.overall, COL.grade, COL.type, COL.archetype, COL.height, COL.weight, COL.forty, COL.draftAge, COL.predraft, COL.pick, COL.outcome, COL.ceiling, COL.floor];
 
 const PRODUCTION_COLS = [
   { key: "dom", label: "Peak Dom", get: peakDom, show: (x) => (peakDom(x) == null ? "—" : `${(peakDom(x) * 100).toFixed(1)}%`) },
@@ -354,7 +374,7 @@ export function RankingsView({ list, pos, onOpen, single }) {
                 </td>
                 {!compact && <td><span className="px-school"><i style={{ background: x.color }} />{x.school}</span></td>}
                 {!single && <td className="c">{x.draftYear}</td>}
-                {columns.map((c) => <td key={c.key} className="c">{c.show(x)}</td>)}
+                {columns.map((c) => <td key={c.key} className="c">{c.show(x, onOpen)}</td>)}
               </tr>
             ))}
           </tbody>
@@ -508,6 +528,34 @@ function TierRoundPanel({ x, history }) {
       <p className="muted small">
         {x.pos}s drafted 2018–2022 with a top-{finish} season in their first four years, by our tier and the round they were drafted in. His tier is highlighted{myRound ? ", and his round" : ""}. Faded cells have fewer than 3 players: anecdotes, not rates.
       </p>
+    </div>
+  );
+}
+
+// Ceiling and floor: the NFL careers his closest past profiles actually had.
+function CompPanel({ x, history, onOpen }) {
+  if (!x.comps) return null;
+  const rows = [
+    ["Ceiling", "If it all goes right", x.comps.ceiling],
+    ["Floor", "If it doesn't", x.comps.floor],
+  ].filter(([, , c]) => c);
+  return (
+    <div className="px-nflcomps">
+      {rows.map(([k, sub, c]) => {
+        const y = history.find((h) => h.id === c.id);
+        return (
+          <button key={k} className={`px-nflcomp ${k.toLowerCase()}`} onClick={() => onOpen(c.id)} title={`Open ${c.name}`}>
+            <small>{k} comp · {sub}</small>
+            <span className="px-nflcomp-row">
+              {y && <Monogram x={y} size={34} />}
+              <span>
+                <b>{c.name}</b>
+                <span className="muted small">{c.school} · {c.draftYear}{c.pick ? ` pick ${c.pick}` : ""} · {c.label}</span>
+              </span>
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -713,6 +761,7 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard
             {bio.map(([k, v]) => <div key={k}><small>{k}</small><b>{v}</b></div>)}
           </div>
           <HypePanel x={x} hypeCard={hypeCard} />
+          <CompPanel x={x} history={history} onOpen={onOpen} />
         </div>
       </div>
 
