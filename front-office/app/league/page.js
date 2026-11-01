@@ -20,10 +20,11 @@ function Column({ title, rank, color, rows, ranks }) {
             <Img src={r.p.img} />
             <span className="col-name">
               <span className="pname">{r.p.name}</span>
-              {ranks[r.id] && (
+              {(ranks[r.id] || r.p.status === "Taxi" || r.p.status === "IR") && (
                 <span className="col-rk" title="Pos Rk by dynasty value · Prod Rk by FPTS/G under your scoring (2+ games)">
-                  <b style={{ color: POS_VAR[r.p.pos] }}>{r.p.pos}{ranks[r.id].posRank}</b>
-                  {ranks[r.id].ppgRank ? ` · Prod ${r.p.pos}${ranks[r.id].ppgRank}` : ""}
+                  <b style={{ color: POS_VAR[r.p.pos] }}>{r.p.pos}{ranks[r.id]?.posRank ?? ""}</b>
+                  {ranks[r.id]?.ppgRank ? ` · Prod ${r.p.pos}${ranks[r.id].ppgRank}` : ""}
+                  {r.p.status === "Taxi" || r.p.status === "IR" ? ` · ${r.p.status}` : ""}
                 </span>
               )}
             </span>
@@ -68,7 +69,7 @@ export default function League() {
         ];
         const isOpen = open.has(t.rosterId);
         const roster = Object.values(data.players).filter((p) => p.owner === t.rosterId).sort((a, b) => b.value - a.value);
-        const col = (pos) => roster.filter((p) => p.pos === pos).slice(0, 8).map((p) => ({ id: p.id, p }));
+        const col = (pos) => roster.filter((p) => p.pos === pos).map((p) => ({ id: p.id, p }));
         const picks = data.picks.filter((k) => k.owner === t.rosterId).map((k) => ({ id: k.id, k }));
         return (
           <div key={t.rosterId} className="card franchise" style={t.rosterId === data.me ? { borderColor: "var(--accent)" } : undefined}>
