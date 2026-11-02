@@ -19,10 +19,10 @@ const DOCK_SIZES = ["closed", "third", "half", "full"];
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "home" },
   { href: "/rankings", label: "Rankings", icon: "rankings" },
+  { href: "/league", label: "League", icon: "league" },
+  { href: "/blueprint", label: "Blueprint", icon: "blueprint" },
   { href: "/trade", label: "Trade", icon: "trade" },
   { href: "/roster-lab", label: "Roster Lab", icon: "lab" },
-  { href: "/blueprint", label: "Blueprint", icon: "blueprint" },
-  { href: "/league", label: "League", icon: "league" },
   { href: "/", label: "Prospects", icon: "cap" },
   { href: "/mock-draft", label: "Mock Draft", icon: "draft" },
   { href: "/history", label: "History", icon: "history" },

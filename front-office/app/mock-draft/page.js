@@ -35,6 +35,7 @@ const fresh = () => ({
   sound: true,
   sync: true, // follow the connected Sleeper league's real picks
   leagueId: null, // league the board was last loaded from
+  syncedOwners: null, // the league's traded picks as of the last sync, to spot new trades
 });
 
 const clock = (ms) => {
@@ -488,12 +489,27 @@ export default function MockDraft() {
   // column, and whoever owns the pick now makes the selection.
   useEffect(() => {
     if (!league || !st || !st.sync) return;
-    // Boards saved before teams carried their Sleeper user reload once, so Smart CPUs know who's who.
-    if (st.leagueId === league.league.id && st.teams.every((t) => "ownerId" in t)) return;
     if (st.status !== "setup" || Object.values(st.picks).some((p) => !p.keeper)) return;
     const l = leagueSetup(league, PROSPECT_CLASS);
     if (!l) return;
-    setSt((x) => ({ ...x, settings: { ...x.settings, ...l.settings }, teams: l.teams, owners: l.owners, claimed: l.claimed, picks: {}, leagueId: league.league.id }));
+    // Boards saved before teams carried their Sleeper user reload once, so Smart CPUs know who's who.
+    if (st.leagueId !== league.league.id || !st.teams.every((t) => "ownerId" in t)) {
+      setSt((x) => ({ ...x, settings: { ...x.settings, ...l.settings }, teams: l.teams, owners: l.owners, syncedOwners: l.owners, claimed: l.claimed, picks: {}, leagueId: league.league.id }));
+      return;
+    }
+    // Same league: pick up trades made since the last sync. Only cells the league changed move, so
+    // trades and keepers set by hand on the board stay. Boards saved before this treat their owners as synced.
+    const prev = st.syncedOwners ?? st.owners;
+    const changed = [...new Set([...Object.keys(prev), ...Object.keys(l.owners)])].filter((k) => prev[k] !== l.owners[k]);
+    if (!changed.length && st.syncedOwners) return;
+    setSt((x) => {
+      const owners = { ...x.owners };
+      for (const k of changed) {
+        if (l.owners[k] == null) delete owners[k];
+        else owners[k] = l.owners[k];
+      }
+      return { ...x, owners, syncedOwners: l.owners };
+    });
   }, [league, st]);
 
   // Every past draft in the league (the History page's data), for how each manager drafts.

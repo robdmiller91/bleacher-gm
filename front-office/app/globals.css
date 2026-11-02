@@ -509,14 +509,16 @@ table.logs .grp th { color: var(--text); font-weight: 700; border-bottom: none; 
 .bp-suggest ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.5rem; }
 
 /* ---------- League History ---------- */
+/* Every team fits across the screen; phones scroll sideways rather than squeezing 12 columns. */
 .board-scroll { overflow-x: auto; padding-bottom: 0.4rem; }
-.board { display: grid; gap: 0.35rem; min-width: max-content; }
+.board { display: grid; gap: 0.35rem; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
+@media (max-width: 900px) { .board { grid-template-columns: repeat(var(--n), 104px); } }
 .board-head {
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.45rem 0.4rem;
   text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .board-cell {
-  display: flex; align-items: stretch; height: 66px; border-radius: 12px; overflow: hidden; width: 100%;
+  display: flex; align-items: stretch; min-height: 66px; border-radius: 12px; overflow: hidden; width: 100%; container-type: inline-size;
   background: color-mix(in srgb, var(--c) 22%, var(--surface)); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
   transition: transform 0.12s;
 }
@@ -530,6 +532,12 @@ table.logs .grp th { color: var(--text); font-weight: 700; border-bottom: none; 
 .board-arrow { color: var(--accent); font-weight: 700; }
 .board-photo { width: 44px; flex-shrink: 0; background: rgba(0, 0, 0, 0.12); }
 .board-photo img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+/* Narrow cells drop the photo and let the name wrap to two lines rather than cutting it off. */
+@container (max-width: 130px) {
+  .board-photo { display: none; }
+  .board-text { padding: 0.35rem 0.45rem; }
+  .board-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.15; }
+}
 .hit-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.7rem; }
 .hit {
   display: flex; flex-direction: column; align-items: center; gap: 0.2rem; text-align: center; padding: 0.7rem 0.4rem;

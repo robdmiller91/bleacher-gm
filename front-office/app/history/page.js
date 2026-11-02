@@ -42,7 +42,7 @@ function DraftBoard({ draft, history }) {
       )}
 
       <div className="board-scroll">
-        <div className="board" style={{ gridTemplateColumns: `repeat(${n}, minmax(138px, 1fr))` }}>
+        <div className="board" style={{ "--n": n }}>
           {slots.map((s) => <div key={`h${s}`} className="board-head">{slotName(s)}</div>)}
           {rounds.flatMap((r) =>
             slots.map((s) => {
