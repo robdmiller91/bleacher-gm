@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/components/AppShell";
 import { Icon, Img } from "@/components/ui";
 import { Monogram, TierBadge } from "@/components/prospects";
-import { heightLabel, parseCsv, POS_VAR } from "@/lib/model";
+import { ImpactPanel } from "@/components/ImpactPanel";
+import { fmt, heightLabel, ordinal, parseCsv, POS_VAR } from "@/lib/model";
 import { PROSPECT_CLASS, espnUrl, loadProspectData, slug } from "@/lib/prospects";
 import { BOARD_SOURCES, mergeBoards } from "@/lib/rookieBoards";
 import {
   ALL_POSITIONS, CPU_SPEEDS, IDP_POSITIONS, CPU_STYLES, DEFAULT_SETTINGS, RANKINGS, ROUND_COUNTS, SCORING, TEAM_COUNTS, TIMERS,
-  MAX_ROUNDS, autoChoice, buildPool, cpuChoice, defaultTeams, draftProfile, leagueSetup, leanSummary, normPos, pickLabel, pickOrder,
+  MAX_ROUNDS, autoChoice, buildPool, cpuChoice, defaultTeams, draftProfile, leagueSetup, leanSummary, mockSummary, normPos, pickLabel, pickOrder,
   positionsFor, smartChoice, teamNeeds, timerLabel,
 } from "@/lib/mockDraft";
 
@@ -335,6 +336,88 @@ function SettingsModal({ state, locked, league, onApply, onClose, tab, setTab })
 // Click a board cell before the draft to set a keeper there or hand the pick to another team.
 // Players without a BGM grade (defenders, names only on the outside boards, players added by hand)
 // still get a card: where every board has them and what's missing.
+const signed = (n) => (n == null ? "—" : `${n > 0 ? "+" : ""}${fmt(n)}`);
+const tone = (n) => (n > 0 ? "up" : n < 0 ? "down" : "muted");
+
+// Below the board once picks are in: pick value each team spent against the value it drafted, your
+// picks one by one, and what the class does to your team's values and league ranks.
+function DraftSummary({ league, summary, onOpen }) {
+  const nameOf = (rid) => league.teams.find((t) => t.rosterId === rid)?.name || `Roster ${rid}`;
+  const priced = summary.rows.filter((r) => r.value != null);
+  const teams = league.teams
+    .map((t) => {
+      const mine = priced.filter((r) => r.team === t.rosterId);
+      const cost = mine.reduce((s, r) => s + r.cost, 0);
+      const value = mine.reduce((s, r) => s + r.value, 0);
+      const after = summary.teams.find((x) => x.rosterId === t.rosterId);
+      return { rid: t.rosterId, picks: mine.length, cost, value, net: value - cost, before: t.totalValueRank, after: after?.totalValueRank };
+    })
+    .filter((t) => t.picks)
+    .sort((a, b) => b.net - a.net);
+  const myPicks = summary.rows.filter((r) => r.team === league.me);
+  const unpriced = summary.rows.length - priced.length;
+  return (
+    <section className="md-summary">
+      <div className="md-panel-head"><h4>DRAFT SUMMARY</h4></div>
+      <div className="dash-grid md-summary-grid">
+        <div className="card">
+          <div className="card-title"><h3>Pick value spent vs player value</h3><span className="muted small">by team, best haul first</span></div>
+          <table className="t">
+            <thead>
+              <tr><th>Team</th><th className="num">Picks</th><th className="num">Spent</th><th className="num">Drafted</th><th className="num">Net</th><th className="num">League rank</th></tr>
+            </thead>
+            <tbody>
+              {teams.map((t) => (
+                <tr key={t.rid} className={t.rid === league.me ? "md-sum-me" : ""}>
+                  <td>{nameOf(t.rid)}{t.rid === league.me ? " (you)" : ""}</td>
+                  <td className="num">{t.picks}</td>
+                  <td className="num">{fmt(t.cost)}</td>
+                  <td className="num">{fmt(t.value)}</td>
+                  <td className={`num ${tone(t.net)}`}>{signed(t.net)}</td>
+                  <td className="num">{t.after === t.before ? ordinal(t.before) : <>{ordinal(t.before)} → <b className={t.after < t.before ? "up" : "down"}>{ordinal(t.after)}</b></>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="card">
+          <div className="card-title"><h3>Your picks</h3>{league.me != null && <span className="muted small">{nameOf(league.me)}</span>}</div>
+          {myPicks.length ? (
+            <table className="t">
+              <thead>
+                <tr><th>Pick</th><th>Player</th><th className="num">Pick</th><th className="num">Player</th><th className="num">Net</th></tr>
+              </thead>
+              <tbody>
+                {myPicks.map((r) => (
+                  <tr key={r.cell.key}>
+                    <td className="muted">{pickLabel(r.cell)}</td>
+                    <td><button className="md-name-btn" onClick={() => onOpen(r.p)}>{r.p.name}</button> <small className="muted">{r.p.pos}</small></td>
+                    <td className="num">{r.cost == null ? "—" : fmt(r.cost)}</td>
+                    <td className="num">{r.value == null ? "—" : fmt(r.value)}</td>
+                    <td className={`num ${tone(r.value - r.cost)}`}>{r.value == null ? "—" : signed(r.value - r.cost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="muted small">{league.me == null ? "Your team isn't in this league, so there's no roster to compare." : "None of your picks have been made yet."}</p>
+          )}
+        </div>
+      </div>
+      {league.me != null && (
+        <>
+          <h4 className="md-summary-sub">What this class does to {nameOf(league.me)}</h4>
+          <ImpactPanel data={league} rosterId={league.me} after={summary.teams} afterPlayers={summary.players} />
+        </>
+      )}
+      <p className="muted small">
+        Pick values are FantasyCalc's prices for this league's {PROSPECT_CLASS} picks. A rookie's value is what the pick at the player's Mock ADP is worth (the same way Roster Lab prices devy prospects), so Net shows whether a team got its player later than the market would take him. Drafted players replace the picks used to take them, so everything else on each roster stays at today's values.
+        {unpriced > 0 && ` ${unpriced} pick${unpriced === 1 ? " isn't" : "s aren't"} priced: defenders (FantasyCalc has no IDP values) and picks the league has no price for.`}
+      </p>
+    </section>
+  );
+}
+
 function ScoutCard({ p, espnId, onClose }) {
   const idp = IDP_POSITIONS.includes(p.pos);
   const sources = BOARD_SOURCES.map((b) => ({ ...b, rank: p.ranks?.[b.key] }));
@@ -552,6 +635,10 @@ export default function MockDraft() {
   const teamPlayers = useCallback(
     (t) => order.filter((c) => ownerOf(c) === t && picks[c.key]).map((c) => byId.get(picks[c.key].id)).filter(Boolean),
     [order, ownerOf, picks, byId],
+  );
+  const summary = useMemo(
+    () => (synced && Object.keys(picks).length ? mockSummary(league, PROSPECT_CLASS, { teams: st.teams, order, picks, ownerOf, byId }) : null),
+    [synced, league, st?.teams, order, picks, ownerOf, byId],
   );
   // Graded players open their report card; everyone else gets the scouting card.
   const openProfile = (p) => {
@@ -1095,6 +1182,8 @@ export default function MockDraft() {
           </div>
         </div>
       </section>
+
+      {summary && <DraftSummary league={league} summary={summary} onOpen={openProfile} />}
 
       <p className="muted small" style={{ marginTop: "1rem" }}>
         Columns show each slot's original team; → means the pick was traded and shows the team that makes the selection. Pool: the graded {PROSPECT_CLASS} class (BGM Prospect Score) plus every player on the outside boards below. CONS blends them (superflex boards count fully in superflex leagues, 1QB boards in 1QB leagues); hover a CONS number to see each source. NFL is the NFL Mock Draft DB consensus big board, which also supplies the IDP pool. Click a graded player to open their report card in a new tab.

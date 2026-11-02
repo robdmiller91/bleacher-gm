@@ -1208,6 +1208,13 @@ select.px-pill.hot { background-image: none; padding-right: 1rem; }
 .md-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.7rem; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .md-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
 .md-panel-head h4 { font-size: 0.7rem; letter-spacing: 0.08em; color: var(--accent); font-weight: 700; }
+/* Draft summary under the mock board */
+.md-summary { margin-top: 1.2rem; }
+.md-summary-grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); margin-top: 0; }
+.md-summary .t .num { text-align: right; white-space: nowrap; }
+.md-sum-me td { background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 600; }
+.md-summary-sub { font-size: 0.9rem; margin: 1.1rem 0 0.6rem; }
+@media (max-width: 900px) { .md-summary-grid { grid-template-columns: 1fr; } }
 .md-filters { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
 .md-find { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.7rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
 .md-find input { border: none; background: none; outline: none; font: inherit; color: var(--text); width: 110px; font-size: 0.8rem; }

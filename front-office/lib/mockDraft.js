@@ -1,6 +1,7 @@
 // Rookie mock draft for the coming class: settings, pick order, rankings and CPU picks.
 // Modelled on Sleeper's mock draft room. Everything runs in the browser.
 
+import { computeTeams, prospectValue } from "./model";
 import { slug } from "./prospects";
 import { boardConsensus, boardKey } from "./rookieBoards";
 
@@ -203,7 +204,7 @@ export function leagueSetup(league, season) {
   const order = r1.map((p) => p.original);
   const teams = order.map((rid) => {
     const t = league.teams.find((x) => x.rosterId === rid);
-    return { name: t?.name || `Roster ${rid}`, avatar: t?.avatar || null, ownerId: t?.ownerId || null };
+    return { name: t?.name || `Roster ${rid}`, avatar: t?.avatar || null, ownerId: t?.ownerId || null, rosterId: rid };
   });
   const owners = {};
   for (const p of picks) {
@@ -227,6 +228,35 @@ export function leagueSetup(league, season) {
     claimed: league.me != null && order.includes(league.me) ? [order.indexOf(league.me)] : [],
     official: picks.some((p) => p.officialSlot),
   };
+}
+
+// What each team spent in the mock and what it got, priced like Roster Lab's devy prospects: a rookie
+// going Nth in mock ADP is worth the class's Nth-best pick. Defenders aren't priced (FantasyCalc has
+// no IDP values), so their picks stay on the books. Also returns the league with the class drafted:
+// each priced pick leaves its owner and the player joins the team that made the selection.
+export function mockSummary(league, season, { teams, order, picks, ownerOf, byId }) {
+  // Boards synced before teams carried their roster id find it through the Sleeper user.
+  const rid = (i) => teams[i]?.rosterId ?? league.teams.find((t) => t.ownerId && t.ownerId === teams[i]?.ownerId)?.rosterId ?? null;
+  const classPicks = league.picks.filter((k) => k.season === season);
+  const prices = classPicks.map((k) => k.value).sort((a, b) => b - a);
+  const rows = [];
+  for (const c of order) {
+    const p = picks[c.key] ? byId.get(picks[c.key].id) : null;
+    if (!p) continue;
+    const pick = classPicks.find((k) => k.round === c.round && k.original === rid(c.col));
+    const priced = !!pick && POSITIONS.includes(p.pos);
+    rows.push({ cell: c, p, team: rid(ownerOf(c)), pick, cost: priced ? pick.value : null, value: priced ? prospectValue(p.adp, prices) : null });
+  }
+  const players = { ...league.players };
+  const used = new Set();
+  for (const r of rows) {
+    if (r.value == null || r.team == null) continue;
+    used.add(r.pick.id);
+    const id = `mock-${r.p.id}`;
+    players[id] = { id, name: r.p.name, pos: r.p.pos, value: r.value, owner: r.team, age: r.p.x?.ageToday ?? null, eligible: [r.p.pos], trend: 0, status: "Bench" };
+  }
+  const after = league.picks.filter((k) => !used.has(k.id));
+  return { rows, players, picks: after, teams: computeTeams(league.teams, players, after) };
 }
 
 // ---------------------------------------------------------------------------

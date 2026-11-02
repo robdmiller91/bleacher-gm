@@ -425,6 +425,8 @@ export function parseCsv(text) {
 // (FantasyCalc pick prices), plus a premium for the blue-chip few — same idea
 // as devy_value() in the Streamlit app. A lower-ranked prospect is never worth more.
 const DEVY_PREMIUM = { 1: 1.35, 2: 1.12, 3: 1.05 };
+// prices: the class's pick values, highest first.
+export const prospectValue = (rank, prices) => Math.round((prices[rank - 1] ?? 75) * (DEVY_PREMIUM[rank] || 1));
 export function devyAssets(rows, picks, season) {
   const list = rows
     .filter((r) => Number(r.Season) === season && r.Player)
@@ -433,7 +435,7 @@ export function devyAssets(rows, picks, season) {
   let prev = Infinity;
   return list.map((r, i) => {
     const rank = i + 1;
-    const value = Math.min(prev, Math.round((pickValues[i] ?? 75) * (DEVY_PREMIUM[rank] || 1)));
+    const value = Math.min(prev, prospectValue(rank, pickValues));
     prev = value;
     const pos = (r.Position || "").toUpperCase();
     const id = `devy-${season}-${r.Player.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
