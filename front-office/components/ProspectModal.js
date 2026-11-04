@@ -11,7 +11,7 @@ import { IDP_POSITIONS } from "@/lib/mockDraft";
 const initials = (name) => name.replace(/\b(Jr|Sr|II|III|IV)\.?$/i, "").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("");
 const schoolAbbr = (school) => (school || "").split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase();
 // Past prospects (comps) live on the prospect board, so they open there.
-const openReport = (id) => window.open(`/?p=${encodeURIComponent(id)}`, "_blank");
+const openReport = (id) => window.open(`/prospects?p=${encodeURIComponent(id)}`, "_blank");
 
 function Boards({ p, teams }) {
   const idp = IDP_POSITIONS.includes(p.pos);

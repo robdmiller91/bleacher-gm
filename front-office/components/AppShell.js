@@ -23,7 +23,7 @@ const NAV = [
   { href: "/blueprint", label: "Blueprint", icon: "blueprint" },
   { href: "/trade", label: "Trade", icon: "trade" },
   { href: "/roster-lab", label: "Roster Lab", icon: "lab" },
-  { href: "/", label: "Prospects", icon: "cap" },
+  { href: "/prospects", label: "Prospects", icon: "cap" },
   { href: "/mock-draft", label: "Mock Draft", icon: "draft" },
   { href: "/history", label: "History", icon: "history" },
 ];
@@ -255,7 +255,7 @@ export default function AppShell({ children }) {
   const openProspectFromChat = useCallback(
     (id) => {
       if (LEAGUE_FREE.includes(pathname)) window.dispatchEvent(new CustomEvent("bgm:open-prospect", { detail: id }));
-      else router.push(`/?p=${encodeURIComponent(id)}`);
+      else router.push(`/prospects?p=${encodeURIComponent(id)}`);
     },
     [pathname, router],
   );
