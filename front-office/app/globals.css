@@ -1414,3 +1414,20 @@ a.md-pl-name:hover { color: var(--accent); }
   background: linear-gradient(160deg, var(--s), color-mix(in srgb, var(--s) 45%, #000));
 }
 .modal-body .px-bio { margin: 0; }
+
+/* The prospect window is wider than the NFL player view, and its report-card panels size to the window,
+   not the screen: side by side when there's room, stacked when there isn't. */
+.modal.modal-wide { width: min(1440px, 100%); }
+.modal-wide .modal-main { container-type: inline-size; }
+.modal-wide .px-bigrate b { font-size: 2rem; }
+.modal-wide .px-predraft b { font-size: 1.35rem; }
+.modal-wide .px-bio b { font-size: 0.88rem; }
+@container (max-width: 1100px) {
+  .modal-wide .px-two { grid-template-columns: minmax(0, 1fr); }
+  .modal-wide .px-bio { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container (max-width: 640px) {
+  .modal-wide .px-bio { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .modal-wide .px-grades-wrap, .modal-wide .px-hitwrap { grid-template-columns: minmax(0, 1fr); }
+  .modal-wide .px-predraft { border-left: none; padding-left: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

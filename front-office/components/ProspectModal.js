@@ -79,7 +79,7 @@ export default function ProspectModal({ p, data, pool, espnId, side, status, tea
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
+      <div className="modal modal-wide">
         <aside className="modal-side">
           <h4>{side.title}</h4>
           {side.list.map((y) => (
