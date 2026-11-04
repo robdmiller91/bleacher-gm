@@ -946,11 +946,7 @@ export default function MockDraft() {
                         <div className="md-pl">
                           {p.x ? <Monogram x={p.x} size={30} /> : <span className="md-mono" style={{ "--c": POS_VAR[p.pos] }}>{p.name[0]}</span>}
                           <span>
-                            {p.x ? (
-                              <a href={`/?p=${encodeURIComponent(p.id)}`} target="_blank" rel="noopener noreferrer" className="md-pl-name">{p.name}</a>
-                            ) : (
-                              <button className="md-name-btn md-pl-name" onClick={() => openProfile(p)}>{p.name}</button>
-                            )}
+                            <button className="md-name-btn md-pl-name" onClick={() => openProfile(p)}>{p.name}</button>
                             <small>
                               <i style={{ color: POS_VAR[p.pos] }}>{p.pos}</i> {p.school}
                               {p.custom ? " · added" : ""}
