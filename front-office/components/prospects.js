@@ -38,7 +38,7 @@ export function OutcomeBadge({ x }) {
   );
 }
 
-function HypeBadge({ x }) {
+export function HypeBadge({ x }) {
   const tone = x.hype.key === "model" ? "var(--good)" : x.hype.key === "hype" ? "var(--bad)" : "var(--muted)";
   return <span className="px-outcome" style={{ "--o": tone }} title={`Profile ${x.profile.toFixed(2)} vs draft capital ${x.capital.toFixed(1)}`}>{x.hype.label}</span>;
 }
@@ -68,7 +68,7 @@ export function GradeBar({ grade, compare }) {
 }
 
 // Grades on a spider chart; a second profile overlays as a dashed outline.
-function Radar({ metrics, other }) {
+export function Radar({ metrics, other }) {
   const list = metrics.filter((m) => m.grade != null);
   if (list.length < 3) return null;
   const R = 92;
@@ -391,7 +391,7 @@ export function RankingsView({ list, pos, onOpen, single }) {
 
 const schoolAbbr = (school) => (school || "").split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase();
 
-function SchoolChip({ x, size = 44 }) {
+export function SchoolChip({ x, size = 44 }) {
   return (
     <span className="px-school-chip" style={{ "--s": x.color, width: size, height: size, fontSize: size * 0.32 }} title={x.school}>
       {schoolAbbr(x.school)}
@@ -432,7 +432,7 @@ function bigRate(p) {
 }
 
 // How past prospects like this one turned out: by our tier (default) or by draft round.
-function TierHitPanel({ x, hitRates, tierHits }) {
+export function TierHitPanel({ x, hitRates, tierHits }) {
   const bucket = x.round || "R6-7";
   const [mode, setMode] = useState("tier");
   const h = mode === "tier" ? tierHits[x.pos]?.[x.tier.key] : hitRates[x.pos]?.[bucket];
@@ -473,7 +473,7 @@ function TierHitPanel({ x, hitRates, tierHits }) {
 }
 
 // Tier × draft round grid for the player's position, with his own cell highlighted.
-function TierRoundPanel({ x, history }) {
+export function TierRoundPanel({ x, history }) {
   const [finish, setFinish] = useState(24);
   const grid = useMemo(() => tierRoundGrid(history, x.pos, finish), [history, x.pos, finish]);
   const mix = useMemo(() => outcomeMix(history, x.pos), [history, x.pos]);
@@ -533,7 +533,7 @@ function TierRoundPanel({ x, history }) {
 }
 
 // Ceiling and floor: the NFL careers his closest past profiles actually had.
-function CompPanel({ x, history, onOpen }) {
+export function CompPanel({ x, history, onOpen }) {
   if (!x.comps) return null;
   const rows = [
     ["Ceiling", "If it all goes right", x.comps.ceiling],
@@ -560,7 +560,7 @@ function CompPanel({ x, history, onOpen }) {
   );
 }
 
-function HypePanel({ x, hypeCard }) {
+export function HypePanel({ x, hypeCard }) {
   const a = hypeCard[x.pos]?.[x.hype.key];
   const msg = {
     model: `His production profile (${x.profile.toFixed(2)}) grades well above his ${isPast(x) ? "draft slot" : "big-board"} capital (${x.capital.toFixed(1)}). The model likes him more than the market does.`,
@@ -652,7 +652,7 @@ export function HeadToHead({ x, y, tierHits, onClose }) {
   );
 }
 
-function SeasonTable({ x }) {
+export function SeasonTable({ x }) {
   const qb = x.pos === "QB";
   return (
     <div className="card px-panel">
@@ -693,7 +693,7 @@ function SeasonTable({ x }) {
   );
 }
 
-function CompRow({ y, d, vs, setVs, onOpen, sub }) {
+export function CompRow({ y, d, vs, setVs, onOpen, sub }) {
   return (
     <div className="px-comp">
       <button className="plink pcell" onClick={() => onOpen(y.id)}>
@@ -711,13 +711,9 @@ function CompRow({ y, d, vs, setVs, onOpen, sub }) {
 }
 
 
-export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard, onOpen, onBack, backLabel }) {
-  const [vs, setVs] = useState(null);
-  const everyone = useMemo(() => [...classList, ...history], [classList, history]);
-  const other = vs ? everyone.find((y) => y.id === vs) : null;
-  const classComps = closestProfiles(x, classList);
-  const pastComps = closestProfiles(x, history.filter((y) => y.draftYear !== x.draftYear), 6);
-  const bio = [
+// The bio grid on the report card (and the mock draft's prospect window).
+export function prospectBio(x) {
+  return [
     ["Class", x.classYear],
     ["Draft Age", ageLabel(x, x.draftAge)],
     ["Age Today", ageLabel(x, x.ageToday)],
@@ -731,6 +727,40 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard
     ["Draft Round", roundLabel(x)],
     ["Draft Pick", pickLabel(x)],
   ];
+}
+
+export function GradesPanel({ x }) {
+  return (
+    <div className="card px-panel">
+      <div className="px-panel-head">
+        <h3>Grades</h3>
+        <span>Stat · grade · letter</span>
+      </div>
+      <div className="px-grades-wrap">
+        <div className="px-grades">
+          {x.metrics.map((m) => (
+            <div key={m.key} className="px-grade" title={m.note}>
+              <span>{m.label}</span>
+              <GradeBar grade={m.grade} />
+              <span className="muted small">{m.fmt(m.value)}</span>
+              <b>{m.grade == null ? "—" : Math.round(m.grade)}</b>
+              <em style={{ color: gradeTone(m.grade) }}>{m.grade == null ? "" : letter(m.grade)}</em>
+            </div>
+          ))}
+        </div>
+        <Radar metrics={x.metrics} />
+      </div>
+    </div>
+  );
+}
+
+export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard, onOpen, onBack, backLabel }) {
+  const [vs, setVs] = useState(null);
+  const everyone = useMemo(() => [...classList, ...history], [classList, history]);
+  const other = vs ? everyone.find((y) => y.id === vs) : null;
+  const classComps = closestProfiles(x, classList);
+  const pastComps = closestProfiles(x, history.filter((y) => y.draftYear !== x.draftYear), 6);
+  const bio = prospectBio(x);
   // CompRow passes the next value (an id, or null to close).
   const compare = (id) => {
     setVs(id);
@@ -767,26 +797,7 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard
       </div>
 
       <div className="px-two">
-        <div className="card px-panel">
-          <div className="px-panel-head">
-            <h3>Grades</h3>
-            <span>Stat · grade · letter</span>
-          </div>
-          <div className="px-grades-wrap">
-            <div className="px-grades">
-              {x.metrics.map((m) => (
-                <div key={m.key} className="px-grade" title={m.note}>
-                  <span>{m.label}</span>
-                  <GradeBar grade={m.grade} />
-                  <span className="muted small">{m.fmt(m.value)}</span>
-                  <b>{m.grade == null ? "—" : Math.round(m.grade)}</b>
-                  <em style={{ color: gradeTone(m.grade) }}>{m.grade == null ? "" : letter(m.grade)}</em>
-                </div>
-              ))}
-            </div>
-            <Radar metrics={x.metrics} />
-          </div>
-        </div>
+        <GradesPanel x={x} />
         <TierHitPanel x={x} hitRates={hitRates} tierHits={tierHits} />
       </div>
 

@@ -1405,3 +1405,12 @@ a.md-pl-name:hover { color: var(--accent); }
 .col-name { display: flex; flex-direction: column; min-width: 0; text-align: left; }
 .col-name .pname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-rk { font-size: 0.66rem; color: var(--muted); white-space: nowrap; }
+
+/* Mock draft prospect window: the player view's hero, with school initials where NFL players get a team logo. */
+.hero-school { position: absolute; right: 10px; bottom: -36px; font-size: 11rem; font-weight: 800; line-height: 1; letter-spacing: -0.04em; opacity: 0.07; pointer-events: none; }
+.hero-mono {
+  display: grid; place-items: center; align-self: center; width: 180px; height: 180px; margin: 0 auto 1.2rem; border-radius: 22px;
+  font-size: 4.2rem; font-weight: 800; color: #fff;
+  background: linear-gradient(160deg, var(--s), color-mix(in srgb, var(--s) 45%, #000));
+}
+.modal-body .px-bio { margin: 0; }

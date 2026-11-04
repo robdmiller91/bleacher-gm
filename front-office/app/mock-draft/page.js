@@ -5,8 +5,9 @@ import { useApp } from "@/components/AppShell";
 import { Icon, Img } from "@/components/ui";
 import { Monogram, TierBadge } from "@/components/prospects";
 import { ImpactPanel } from "@/components/ImpactPanel";
+import ProspectModal from "@/components/ProspectModal";
 import { fmt, heightLabel, ordinal, parseCsv, POS_VAR } from "@/lib/model";
-import { PROSPECT_CLASS, espnUrl, loadProspectData, slug } from "@/lib/prospects";
+import { PROSPECT_CLASS, loadProspectData, slug } from "@/lib/prospects";
 import { BOARD_SOURCES, mergeBoards } from "@/lib/rookieBoards";
 import {
   ALL_POSITIONS, CPU_SPEEDS, IDP_POSITIONS, CPU_STYLES, DEFAULT_SETTINGS, RANKINGS, ROUND_COUNTS, SCORING, TEAM_COUNTS, TIMERS,
@@ -418,57 +419,6 @@ function DraftSummary({ league, summary, onOpen }) {
   );
 }
 
-function ScoutCard({ p, espnId, onClose }) {
-  const idp = IDP_POSITIONS.includes(p.pos);
-  const sources = BOARD_SOURCES.map((b) => ({ ...b, rank: p.ranks?.[b.key] }));
-  const mockPick = (r) => `${Math.ceil(r / 12)}.${String(((r - 1) % 12) + 1).padStart(2, "0")}`;
-  return (
-    <div className="md-modal-back" onMouseDown={onClose}>
-      <div className="md-modal small" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="md-modal-body">
-          <div className="md-scout-head">
-            <span className="md-mono big" style={{ "--c": POS_VAR[p.pos] }}>{p.name[0]}</span>
-            <span>
-              <h3>{p.name}</h3>
-              {espnId && <a className="px-espn" href={espnUrl(espnId)} target="_blank" rel="noopener noreferrer">ESPN profile ↗</a>}
-              <small><i style={{ color: POS_VAR[p.pos] }}>{p.pos}</i> {p.school || "School unknown"}</small>
-            </span>
-          </div>
-          <div className="md-scout-stats">
-            <div><small>Mock ADP</small><b>{p.adp ?? "—"}</b></div>
-            <div><small>Consensus</small><b>{p.cons ?? "—"}</b></div>
-            <div><small>NFL Board</small><b>{p.nfl ? `#${p.nfl}` : "—"}</b></div>
-            {idp && <div><small>{p.pos} rank</small><b>{p.idpRank ?? "—"}</b></div>}
-          </div>
-          {!idp && !p.custom && (
-            <>
-              <label className="md-label">Rookie boards</label>
-              <div className="md-scout-src">
-                {sources.map((b) => (
-                  <a key={b.key} href={b.url} target="_blank" rel="noopener noreferrer">
-                    <span>{b.label}<small>{b.sub}</small></span>
-                    <b>{b.rank ? (b.mock ? mockPick(b.rank) : `#${b.rank}`) : "Not listed"}</b>
-                  </a>
-                ))}
-              </div>
-            </>
-          )}
-          <p className="muted small">
-            {idp
-              ? "The BGM Prospect Score grades QBs, RBs, WRs and TEs only, so defenders are ranked by the NFL Mock Draft DB consensus big board."
-              : p.custom
-                ? "Added by hand in Player Pool, so there's nothing on file for this player."
-                : "No college stats on file yet, so there's no BGM report card. Add the player to public/data/prospects_2027.csv and prospect_seasons.csv to grade them."}
-          </p>
-        </div>
-        <div className="md-modal-foot">
-          <button className="btn" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function CellModal({ cell, state, pool, drafted, onSave, onClose }) {
   const [q, setQ] = useState("");
   const owner = state.owners[cell.key] ?? cell.col;
@@ -543,7 +493,7 @@ export default function MockDraft() {
     const csv = (f) => fetch(`/data/${f}`).then((r) => (r.ok ? r.text() : "")).then(parseCsv);
     // The boards snapshot loads first; the live refresh (NFL Mock Draft DB, Dynasty Nerds) swaps in when it lands.
     Promise.all([loadProspectData(), csv(`rookie_boards_${PROSPECT_CLASS}.csv`), csv(`idp_prospects_${PROSPECT_CLASS}.csv`)])
-      .then(([d, boards, idp]) => setSrc({ prospects: d.prospects, espnIds: d.espnIds, snapshot: boards, idpCsv: idp }))
+      .then(([d, boards, idp]) => setSrc({ prospects: d.prospects, espnIds: d.espnIds, report: d, snapshot: boards, idpCsv: idp }))
       .catch(() => setError(true));
     fetch("/api/rookie-boards")
       .then((r) => (r.ok ? r.json() : null))
@@ -640,12 +590,9 @@ export default function MockDraft() {
     () => (synced && Object.keys(picks).length ? mockSummary(league, PROSPECT_CLASS, { teams: st.teams, order, picks, ownerOf, byId }) : null),
     [synced, league, st?.teams, order, picks, ownerOf, byId],
   );
-  // Graded players open their report card; everyone else gets the scouting card.
-  const openProfile = (p) => {
-    if (!p) return;
-    if (p.x) window.open(`/?p=${encodeURIComponent(p.id)}`, "_blank");
-    else setU({ scout: p.id });
-  };
+  // Every player opens the prospect window: the report card summary for graded players, the boards for the rest.
+  const openProfile = (p) => p && setU({ scout: p.id });
+  const closeProfile = useCallback(() => setUi((u) => ({ ...u, scout: null })), []);
   const locked = !!st && st.status !== "setup" && Object.values(picks).some((p) => !p.keeper);
 
   const makePick = useCallback((cell, player, why) => {
@@ -1186,7 +1133,7 @@ export default function MockDraft() {
       {summary && <DraftSummary league={league} summary={summary} onOpen={openProfile} />}
 
       <p className="muted small" style={{ marginTop: "1rem" }}>
-        Columns show each slot's original team; → means the pick was traded and shows the team that makes the selection. Pool: the graded {PROSPECT_CLASS} class (BGM Prospect Score) plus every player on the outside boards below. CONS blends them (superflex boards count fully in superflex leagues, 1QB boards in 1QB leagues); hover a CONS number to see each source. NFL is the NFL Mock Draft DB consensus big board, which also supplies the IDP pool. Click a graded player to open their report card in a new tab.
+        Columns show each slot's original team; → means the pick was traded and shows the team that makes the selection. Pool: the graded {PROSPECT_CLASS} class (BGM Prospect Score) plus every player on the outside boards below. CONS blends them (superflex boards count fully in superflex leagues, 1QB boards in 1QB leagues); hover a CONS number to see each source. NFL is the NFL Mock Draft DB consensus big board, which also supplies the IDP pool. Click any player to open their prospect window.
         <br />
         Boards:{" "}
         {BOARD_SOURCES.map((b, i) => (
@@ -1201,7 +1148,37 @@ export default function MockDraft() {
       {ui.settings && (
         <SettingsModal state={st} locked={locked} league={league} tab={ui.settings} setTab={(t) => setU({ settings: t })} onApply={applySettings} onClose={() => setU({ settings: null })} />
       )}
-      {ui.scout && byId.get(ui.scout) && <ScoutCard p={byId.get(ui.scout)} espnId={src.espnIds[slug(byId.get(ui.scout).name)]} onClose={() => setU({ scout: null })} />}
+      {ui.scout && byId.get(ui.scout) && (() => {
+        const p = byId.get(ui.scout);
+        const cell = order.find((c) => picks[c.key]?.id === p.id);
+        const team = cell ? ownerOf(cell) : null;
+        const side = cell
+          ? { title: `${teamName(team)}'s picks`, list: teamPlayers(team) }
+          : { title: `Best available ${p.pos}s`, list: available.filter((y) => y.pos === p.pos).slice(0, 14) };
+        return (
+          <ProspectModal
+            key={p.id}
+            p={p}
+            data={src.report}
+            pool={pool}
+            espnId={src.espnIds[slug(p.name)]}
+            side={side}
+            teams={s.teams}
+            status={cell ? `${picks[cell.key].keeper ? "Kept" : "Drafted"} ${pickLabel(cell)} · ${teamName(team)}` : `Available · Mock ADP ${p.adp}`}
+            canDraft={!cell && mineNow && st.status === "drafting"}
+            onDraft={(y) => {
+              draftNow(y);
+              setU({ scout: null });
+            }}
+            queued={st.queue.includes(p.id)}
+            onQueue={cell ? null : (id) => toggleIn("queue", id)}
+            watched={st.watch.includes(p.id)}
+            onWatch={cell ? null : (id) => toggleIn("watch", id)}
+            onOpen={openProfile}
+            onClose={closeProfile}
+          />
+        );
+      })()}
       {ui.cell && (
         <CellModal
           cell={ui.cell}
