@@ -525,9 +525,28 @@ export default function MockDraft() {
     if (st.status !== "setup" || Object.values(st.picks).some((p) => !p.keeper)) return;
     const l = leagueSetup(league, PROSPECT_CLASS);
     if (!l) return;
-    // Boards saved before teams carried their Sleeper user reload once, so Smart CPUs know who's who.
-    if (st.leagueId !== league.league.id || !st.teams.every((t) => "ownerId" in t)) {
-      setSt((x) => ({ ...x, settings: { ...x.settings, ...l.settings }, teams: l.teams, owners: l.owners, syncedOwners: l.owners, claimed: l.claimed, picks: {}, leagueId: league.league.id }));
+    // Reload the teams when the league changes, when the draft order has moved (before the order is
+    // official it follows the standings, which shift every week), or for boards saved before teams
+    // carried their roster id. Columns are positions, so trades, keepers and claimed teams are only
+    // right while each column still holds the same team.
+    const sameOrder = st.teams.length === l.teams.length && st.teams.every((t, i) => t.rosterId != null && t.rosterId === l.teams[i].rosterId);
+    if (st.leagueId !== league.league.id || !sameOrder) {
+      const sameLeague = st.leagueId === league.league.id;
+      const colOf = (i) => l.teams.findIndex((t) => t.rosterId != null && t.rosterId === st.teams[i]?.rosterId);
+      // Same league, new order: keepers and claimed teams follow their team to its new column.
+      const picks = {};
+      const claimed = sameLeague ? st.claimed.map(colOf).filter((c) => c >= 0) : [];
+      if (sameLeague) {
+        for (const [key, pick] of Object.entries(st.picks)) {
+          const [round, col] = key.split("-").map(Number);
+          const to = colOf(col);
+          if (pick.keeper && to >= 0) picks[`${round}-${to}`] = pick;
+        }
+      }
+      setSt((x) => ({
+        ...x, settings: { ...x.settings, ...l.settings }, teams: l.teams, owners: l.owners, syncedOwners: l.owners,
+        claimed: claimed.length ? claimed : l.claimed, picks, leagueId: league.league.id,
+      }));
       return;
     }
     // Same league: pick up trades made since the last sync. Only cells the league changed move, so
