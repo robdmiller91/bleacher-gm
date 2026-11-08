@@ -344,6 +344,10 @@ export default function PlayerModal({ id, onClose }) {
               <h2>{p.name}</h2>
               <div className="hero-sub">
                 <span>{p.pos} – {p.team}</span>
+                {p.college ? <span>{p.college}</span> : null}
+                {p.height || p.weight ? (
+                  <span>{[p.height ? heightLabel(p.height) : null, p.weight ? `${p.weight} lb` : null].filter(Boolean).join(" · ")}</span>
+                ) : null}
                 {p.age ? <span>Age {Math.floor(p.age)}</span> : null}
                 {p.number != null ? <span>#{p.number}</span> : null}
                 {p.injury ? <span style={{ color: "#fca5a5" }}>{p.injury}{p.injuryPart ? ` (${p.injuryPart})` : ""}</span> : null}
