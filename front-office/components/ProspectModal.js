@@ -7,6 +7,7 @@ import { POS_VAR } from "@/lib/model";
 import { closestProfiles, espnUrl } from "@/lib/prospects";
 import { BOARD_SOURCES } from "@/lib/rookieBoards";
 import { IDP_POSITIONS } from "@/lib/mockDraft";
+import DraftOutlook from "./DraftOutlook";
 
 const initials = (name) => name.replace(/\b(Jr|Sr|II|III|IV)\.?$/i, "").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("");
 const schoolAbbr = (school) => (school || "").split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase();
@@ -153,6 +154,7 @@ export default function ProspectModal({ p, data, pool, espnId, side, status, tea
                     <div className="px-bio" style={{ "--s": x.color }}>
                       {prospectBio(x).map(([k, v]) => <div key={k}><small>{k}</small><b>{v}</b></div>)}
                     </div>
+                    <DraftOutlook x={x} data={data} />
                     <HypePanel x={x} hypeCard={data.hypeCard} />
                     <CompPanel x={x} history={data.history} onOpen={openComp} />
                     <div className="px-two">

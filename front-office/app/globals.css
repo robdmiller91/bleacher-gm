@@ -1431,3 +1431,37 @@ a.md-pl-name:hover { color: var(--accent); }
   .modal-wide .px-grades-wrap, .modal-wide .px-hitwrap { grid-template-columns: minmax(0, 1fr); }
   .modal-wide .px-predraft { border-left: none; padding-left: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ---------- Draft outlook (coming-class projection) ---------- */
+.do-card { padding: 0; overflow: hidden; }
+.do-body { display: grid; gap: 0.8rem; padding: 0 1.1rem 1.1rem; }
+.do-score { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.9rem 1.1rem; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
+.do-score small, .do-tiles small, .do-weeks-head small { display: block; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.do-score > div:first-child b { font-size: 2.4rem; font-weight: 800; line-height: 1.1; color: var(--pk); }
+.do-score > div:first-child b span { font-size: 0.9rem; font-weight: 500; color: var(--muted); margin-left: 0.15rem; }
+.do-score-r { display: grid; justify-items: end; gap: 0.35rem; text-align: right; }
+.do-score-r small { letter-spacing: 0.04em; text-transform: none; font-weight: 500; }
+.do-score-r small b { color: var(--text); }
+.do-chip { padding: 0.15rem 0.5rem; border-radius: 6px; font-size: 0.72rem; font-weight: 700; background: var(--surface-3); color: var(--muted); white-space: nowrap; }
+.do-chip.up { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+.do-chip.down { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+.do-read { display: flex; align-items: center; gap: 0.8rem; padding: 0.7rem 1rem; border-radius: 12px; border: 1px solid var(--border); font-size: 0.85rem; }
+.do-tag { flex: none; padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; background: var(--surface-3); color: var(--text); }
+.do-tag.rising { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+.do-tag.falling { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+.do-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+.do-tiles > div { padding: 0.8rem 1rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); min-width: 0; }
+.do-tiles b { display: block; font-size: 1.45rem; font-weight: 800; margin: 0.3rem 0 0.15rem; }
+.do-tiles span { font-size: 0.74rem; color: var(--muted); }
+.do-weeks { padding: 0.8rem 1rem; border-radius: 12px; border: 1px solid var(--border); }
+.do-weeks-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+.do-weeks-head small { color: var(--pk); }
+.do-weeks-head span { font-size: 0.72rem; color: var(--muted); }
+.do-week-row { display: flex; gap: 0.5rem; overflow-x: auto; }
+.do-week-row > div { flex: none; min-width: 64px; text-align: center; padding: 0.4rem; border-radius: 8px; background: var(--surface-2); }
+.do-week-row small { display: block; font-size: 0.66rem; color: var(--muted); }
+.do-week-row b { display: block; font-size: 1.05rem; }
+.do-week-row b.up { color: var(--good); }
+.do-week-row b.down { color: var(--bad); }
+.do-week-row span { font-size: 0.66rem; color: var(--muted); }
+@media (max-width: 900px) { .do-tiles { grid-template-columns: 1fr; } .do-read { flex-wrap: wrap; } }

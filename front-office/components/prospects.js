@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Pos } from "./ui";
+import DraftOutlook from "./DraftOutlook";
 import { fmt, heightLabel } from "@/lib/model";
 import {
   BREAKOUT_LABEL, HYPE_GAP, METRICS, OUTCOMES, PROSPECT_CLASS, PROSPECT_TIERS, ROOM_WEIGHT, ROUND_BUCKETS, ROUND_LABELS, TIER_CUTS, UNRANKED_RANK,
@@ -754,7 +755,7 @@ export function GradesPanel({ x }) {
   );
 }
 
-export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard, onOpen, onBack, backLabel }) {
+export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard, weeks, onOpen, onBack, backLabel }) {
   const [vs, setVs] = useState(null);
   const everyone = useMemo(() => [...classList, ...history], [classList, history]);
   const other = vs ? everyone.find((y) => y.id === vs) : null;
@@ -795,6 +796,8 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard
           <CompPanel x={x} history={history} onOpen={onOpen} />
         </div>
       </div>
+
+      <DraftOutlook x={x} data={{ weeks, hitRates, tierHits }} />
 
       <div className="px-two">
         <GradesPanel x={x} />

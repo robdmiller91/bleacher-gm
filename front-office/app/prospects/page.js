@@ -182,6 +182,7 @@ export default function Prospects() {
           hitRates={data.hitRates}
           tierHits={data.tierHits}
           hypeCard={data.hypeCard}
+          weeks={data.weeks}
           onOpen={openProspect}
           backLabel={view === "board" ? `${current.draftYear} board` : "Back"}
           onBack={() => (view === "board" ? go({ view: "board", year: current.draftYear }) : go({}))}

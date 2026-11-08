@@ -5,6 +5,7 @@
 // starters. Every threshold below is a tunable judgement call, not a fitted model.
 
 import { parseCsv } from "./model";
+import { recordWeek } from "./prospectTrend";
 
 export const PROSPECT_CLASS = 2027;
 // Approximate: the 2027 NFL Draft is in late April.
@@ -552,7 +553,9 @@ export function closestProfiles(x, list, n = 5) {
 // (drafted 2018 on, so each comp is a real NFL career):
 //   ceiling - of the COMP_POOL nearest, the one whose career went best: the outcome if all goes right
 //   floor   - the nearest one who missed (no top-36 season in a complete four-year window)
-const COMP_POOL = 12;
+// The pool stays small: with 12, the ceiling was often the 11th or 12th closest profile, and a few stars
+// (Brian Thomas Jr., Josh Jacobs, Sam LaPorta) won for a large share of the class just by making the list.
+const COMP_POOL = 6;
 const finish = (y) => y.outcome.best ?? y.outcome.best4 ?? 999;
 const compOf = ({ y, d }, kind) => ({
   id: y.id, name: y.name, draftYear: y.draftYear, pick: y.pick, school: y.school, d,
@@ -590,5 +593,7 @@ export async function loadProspectData() {
   return {
     prospects, hitRates: buildHitRates(hits), history, espnIds,
     tierHits: tierHitRates(history), hypeCard: hypeScorecard(history),
+    // This week's snapshot for the draft-outlook trend (browser only).
+    weeks: typeof window === "undefined" ? {} : recordWeek(prospects),
   };
 }
