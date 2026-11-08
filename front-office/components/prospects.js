@@ -755,7 +755,7 @@ export function GradesPanel({ x }) {
   );
 }
 
-export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard, weeks, onOpen, onBack, backLabel }) {
+export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard, onOpen, onBack, backLabel }) {
   const [vs, setVs] = useState(null);
   const everyone = useMemo(() => [...classList, ...history], [classList, history]);
   const other = vs ? everyone.find((y) => y.id === vs) : null;
@@ -797,7 +797,7 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard
         </div>
       </div>
 
-      <DraftOutlook x={x} data={{ weeks, hitRates, tierHits }} />
+      <DraftOutlook x={x} data={{ hitRates, tierHits }} />
 
       <div className="px-two">
         <GradesPanel x={x} />

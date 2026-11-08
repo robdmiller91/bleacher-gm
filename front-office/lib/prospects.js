@@ -5,7 +5,6 @@
 // starters. Every threshold below is a tunable judgement call, not a fitted model.
 
 import { parseCsv } from "./model";
-import { recordWeek } from "./prospectTrend";
 
 export const PROSPECT_CLASS = 2027;
 // Approximate: the 2027 NFL Draft is in late April.
@@ -593,7 +592,5 @@ export async function loadProspectData() {
   return {
     prospects, hitRates: buildHitRates(hits), history, espnIds,
     tierHits: tierHitRates(history), hypeCard: hypeScorecard(history),
-    // This week's snapshot for the draft-outlook trend (browser only).
-    weeks: typeof window === "undefined" ? {} : recordWeek(prospects),
   };
 }
