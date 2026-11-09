@@ -2,7 +2,7 @@
 // Modelled on Sleeper's mock draft room. Everything runs in the browser.
 
 import { computeTeams, prospectValue } from "./model";
-import { slug } from "./prospects";
+import { espnHeadshot, schoolColor, slug } from "./prospects";
 import { boardConsensus, boardKey } from "./rookieBoards";
 
 export const POSITIONS = ["QB", "RB", "WR", "TE"];
@@ -95,7 +95,8 @@ export const pickLabel = (c) => `${c.round}.${c.inRound}`;
 
 // The draft pool: the graded class, then everyone else on the outside rookie boards, then anything
 // added by hand. Each player gets an ADP for the chosen rankings and scoring.
-export function buildPool({ prospects, boards = [], idp = [], custom }, s) {
+export function buildPool({ prospects, boards = [], idp = [], custom, espnIds = {} }, s) {
+  const headshot = (name) => espnHeadshot(espnIds[slug(name)]);
   const scoring = SCORING.find((x) => x.key === s.scoring) || SCORING[0];
   const ranked = boardConsensus(boards, !!scoring.superflex);
   const onBoard = Object.fromEntries(ranked.map((r) => [r.key, r]));
@@ -114,7 +115,7 @@ export function buildPool({ prospects, boards = [], idp = [], custom }, s) {
   }
   for (const r of ranked) {
     const pos = normPos(r.pos);
-    if (POSITIONS.includes(pos)) add({ id: slug(r.name), name: r.name, pos, school: r.school, cons: r.cons, nfl: r.nfl ?? null, bgm: null, ranks: r.ranks });
+    if (POSITIONS.includes(pos)) add({ id: slug(r.name), name: r.name, pos, school: r.school, color: schoolColor(r.school), img: headshot(r.name), cons: r.cons, nfl: r.nfl ?? null, bgm: null, ranks: r.ranks });
   }
   for (const c of custom.filter((c) => POSITIONS.includes(c.pos))) add({ id: `c-${slug(c.name)}`, name: c.name, pos: c.pos, school: c.school, cons: null, nfl: null, bgm: null, custom: true });
   // Defenders have their own list and are slotted into the board below.
@@ -123,7 +124,7 @@ export function buildPool({ prospects, boards = [], idp = [], custom }, s) {
     idp
       .filter((r) => r.Player && IDP_POSITIONS.includes(normPos(r.Position)))
       .sort((a, b) => Number(a.Rank) - Number(b.Rank))
-      .forEach((r) => defenders.push({ id: slug(r.Player), name: r.Player, pos: normPos(r.Position), school: r.School, cons: null, nfl: Number(r["NFL Board"]) || null, bgm: null }));
+      .forEach((r) => defenders.push({ id: slug(r.Player), name: r.Player, pos: normPos(r.Position), school: r.School, color: schoolColor(r.School), img: headshot(r.Player), cons: null, nfl: Number(r["NFL Board"]) || null, bgm: null }));
     for (const c of custom.filter((c) => IDP_POSITIONS.includes(c.pos))) defenders.push({ id: `c-${slug(c.name)}`, name: c.name, pos: c.pos, school: c.school, cons: null, nfl: null, bgm: null, custom: true });
   }
 

@@ -389,6 +389,9 @@ const isSkill = (r) => r.Player && METRICS[(r.Position || "").toUpperCase()];
 const sleeperImg = (id) => (id ? `https://sleepercdn.com/content/nfl/players/thumb/${id}.jpg` : null);
 // ESPN redirects a college profile to the NFL one once the player is drafted.
 export const espnUrl = (id) => (id ? `https://www.espn.com/college-football/player/_/id/${id}` : null);
+// ESPN's college headshot (a transparent cut-out), resized by ESPN's image server. Hotlinked, never stored.
+export const espnHeadshot = (id) =>
+  id ? `https://a.espncdn.com/combiner/i?img=/i/headshots/college-football/players/full/${id}.png&w=350&h=254` : null;
 
 // Both the coming class and the past classes, graded together so crowded rooms see each other.
 export function buildAll(bioRows, seasonRows, histBio, histSeasons, now = Date.now()) {
@@ -412,7 +415,7 @@ function buildProspects(bioRows, seasonsBy, now) {
     const x = gradeProspect(r, seasonsBy[id] || [], { id, draftYear: PROSPECT_CLASS, capitalRank: boardRank, now });
     x.boardRank = boardRank;
     x.round = projectedRound(boardRank);
-    // Drop a photo you have the rights to into public/img/prospects/<id>.jpg and it shows up.
+    // Local photo (public/img/prospects/<id>.jpg); replaced by the ESPN college headshot when there's an ESPN id.
     x.img = r.Image || `/img/prospects/${id}.jpg`;
     // Full photos (not transparent cut-outs like Sleeper's), so cards crop them to fill.
     x.photo = true;
@@ -586,9 +589,15 @@ export async function loadProspectData() {
     get("prospect_history.csv"), get("prospect_history_seasons.csv"), get("espn_ids.csv"),
   ]);
   const { prospects, history } = buildAll(bio, seasons, histBio, histSeasons);
-  // Players without a Sleeper headshot link to their ESPN profile (a link only, never ESPN's photo).
-  const espnIds = Object.fromEntries(espn.map((r) => [slug(r.Player), r["ESPN Id"]]));
-  for (const x of [...prospects, ...history.filter((y) => !y.img)]) x.espnId = espnIds[slug(x.name)] || null;
+  // Prospects (and past picks without a Sleeper headshot) show their ESPN college headshot and link to the profile.
+  const espnIds = Object.fromEntries(espn.map((r) => [slug(r.Player), (r["ESPN Id"] || "").trim()]));
+  for (const x of [...prospects, ...history.filter((y) => !y.img)]) {
+    x.espnId = espnIds[slug(x.name)] || null;
+    if (!x.espnId) continue;
+    x.img = espnHeadshot(x.espnId);
+    x.photo = false;
+    x.imgCredit = "Photo: ESPN";
+  }
   return {
     prospects, hitRates: buildHitRates(hits), history, espnIds,
     tierHits: tierHitRates(history), hypeCard: hypeScorecard(history),

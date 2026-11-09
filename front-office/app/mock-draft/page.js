@@ -592,7 +592,7 @@ export default function MockDraft() {
       ? fromLive.map((p, i) => ({ Rank: i + 1, Player: p.name, Position: p.pos, School: p.school, "NFL Board": p.rank }))
       : src.idpCsv;
   }, [src, live]);
-  const pool = useMemo(() => (src ? buildPool({ prospects: src.prospects, boards, idp, custom: st?.custom || [] }, s) : []), [src, boards, idp, st?.custom, s]);
+  const pool = useMemo(() => (src ? buildPool({ prospects: src.prospects, espnIds: src.espnIds, boards, idp, custom: st?.custom || [] }, s) : []), [src, boards, idp, st?.custom, s]);
   const byId = useMemo(() => new Map(pool.map((p) => [p.id, p])), [pool]);
   const picks = st?.picks || {};
   const drafted = useMemo(() => new Set(Object.values(picks).map((p) => p.id)), [picks]);
@@ -963,7 +963,7 @@ export default function MockDraft() {
                       <td className="num">{p.adp}</td>
                       <td className="left">
                         <div className="md-pl">
-                          {p.x ? <Monogram x={p.x} size={30} /> : <span className="md-mono" style={{ "--c": POS_VAR[p.pos] }}>{p.name[0]}</span>}
+                          {p.x || p.img ? <Monogram x={p.x || p} size={30} /> : <span className="md-mono" style={{ "--c": POS_VAR[p.pos] }}>{p.name[0]}</span>}
                           <span>
                             <button className="md-name-btn md-pl-name" onClick={() => openProfile(p)}>{p.name}</button>
                             <small>

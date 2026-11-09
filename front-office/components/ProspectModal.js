@@ -85,7 +85,7 @@ export default function ProspectModal({ p, data, pool, espnId, side, status, tea
           <h4>{side.title}</h4>
           {side.list.map((y) => (
             <button key={y.id} className={`side-player${y.id === p.id ? " on" : ""}`} onClick={() => onOpen(y)}>
-              {y.x ? <Monogram x={y.x} size={32} /> : <span className="md-mono" style={{ "--c": POS_VAR[y.pos] }}>{y.name[0]}</span>}
+              {y.x || y.img ? <Monogram x={y.x || y} size={32} /> : <span className="md-mono" style={{ "--c": POS_VAR[y.pos] }}>{y.name[0]}</span>}
               <span style={{ minWidth: 0 }}>
                 <span className="pname" style={{ display: "block", fontSize: "0.82rem" }}>{y.name}</span>
                 <span className="muted small">{y.pos} · {y.school || "—"}{y.adp ? ` · ADP ${y.adp}` : ""}</span>
