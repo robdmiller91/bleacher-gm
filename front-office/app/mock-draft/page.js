@@ -351,7 +351,7 @@ function DraftSummary({ league, summary, onOpen }) {
       const cost = mine.reduce((s, r) => s + r.cost, 0);
       const value = mine.reduce((s, r) => s + r.value, 0);
       const after = summary.teams.find((x) => x.rosterId === t.rosterId);
-      return { rid: t.rosterId, picks: mine.length, cost, value, net: value - cost, before: t.totalValueRank, after: after?.totalValueRank };
+      return { rid: t.rosterId, picks: mine.length, cost, value, net: value - cost, before: t.totalValueRank, after: after?.totalValueRank, totalBefore: t.totalValue, totalAfter: after?.totalValue ?? t.totalValue };
     })
     .filter((t) => t.picks)
     .sort((a, b) => b.net - a.net);
@@ -365,7 +365,7 @@ function DraftSummary({ league, summary, onOpen }) {
           <div className="card-title"><h3>Pick value spent vs player value</h3><span className="muted small">by team, best haul first</span></div>
           <table className="t">
             <thead>
-              <tr><th>Team</th><th className="num">Picks</th><th className="num">Spent</th><th className="num">Drafted</th><th className="num">Net</th><th className="num">League rank</th></tr>
+              <tr><th>Team</th><th className="num">Picks</th><th className="num">Spent</th><th className="num">Drafted</th><th className="num">Net</th><th className="num">Team value</th><th className="num">League rank</th></tr>
             </thead>
             <tbody>
               {teams.map((t) => (
@@ -375,6 +375,9 @@ function DraftSummary({ league, summary, onOpen }) {
                   <td className="num">{fmt(t.cost)}</td>
                   <td className="num">{fmt(t.value)}</td>
                   <td className={`num ${tone(t.net)}`}>{signed(t.net)}</td>
+                  <td className="num" title={`Before the draft: ${fmt(t.totalBefore)}`}>
+                    {fmt(t.totalAfter)} <small className={tone(t.totalAfter - t.totalBefore)}>{signed(Math.round(t.totalAfter - t.totalBefore))}</small>
+                  </td>
                   <td className="num">{t.after === t.before ? ordinal(t.before) : <>{ordinal(t.before)} → <b className={t.after < t.before ? "up" : "down"}>{ordinal(t.after)}</b></>}</td>
                 </tr>
               ))}
@@ -412,7 +415,7 @@ function DraftSummary({ league, summary, onOpen }) {
         </>
       )}
       <p className="muted small">
-        Pick values are FantasyCalc's prices for this league's {PROSPECT_CLASS} picks. A rookie's value is what the pick at the player's Mock ADP is worth (the same way Roster Lab prices devy prospects), so Net shows whether a team got its player later than the market would take him. Drafted players replace the picks used to take them, so everything else on each roster stays at today's values.
+        Pick values are FantasyCalc's prices for this league's {PROSPECT_CLASS} picks. A rookie's value is what the pick at the player's Mock ADP is worth (the same way Roster Lab prices devy prospects), so Net shows whether a team got its player later than the market would take him. Drafted players replace the picks used to take them, so everything else on each roster stays at today's values. Team value is the whole roster (players plus remaining picks) after the draft, with the change from before it.
         {unpriced > 0 && ` ${unpriced} pick${unpriced === 1 ? " isn't" : "s aren't"} priced: defenders (FantasyCalc has no IDP values) and picks the league has no price for.`}
       </p>
     </section>
