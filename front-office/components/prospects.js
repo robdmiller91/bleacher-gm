@@ -57,7 +57,7 @@ export function Monogram({ x, size = 64 }) {
 // Projected (or actual) draft slot as a label, the way scouts talk about it.
 const slotLabel = (pick) =>
   !pick ? "Unranked" : pick <= 10 ? "Top 10" : pick <= 32 ? "1st Round" : pick <= 64 ? "2nd Round" : pick <= 100 ? "3rd Round" : "Day 3";
-const predraftLabel = (x) => slotLabel(isPast(x) ? x.pick : x.boardRank);
+const predraftLabel = (x) => slotLabel(isPast(x) ? x.pick : x.projPick);
 
 export function GradeBar({ grade, compare }) {
   return (
@@ -199,7 +199,7 @@ const COL = {
   weight: { key: "weight", label: "Wt", get: (x) => x.weight, show: (x) => x.weight ?? "—" },
   forty: { key: "forty", label: "40", get: (x) => x.forty, show: (x) => (x.forty ? x.forty.toFixed(2) : "—"), asc: true },
   draftAge: { key: "draftAge", label: "Draft Age", get: (x) => x.draftAge, show: (x) => ageLabel(x, x.draftAge), asc: true },
-  predraft: { key: "predraft", label: "Pre-Draft", get: (x) => (isPast(x) ? x.pick : x.boardRank || UNRANKED_RANK), show: predraftLabel, asc: true },
+  predraft: { key: "predraft", label: "Pre-Draft", get: (x) => (isPast(x) ? x.pick : x.projPick || UNRANKED_RANK), show: predraftLabel, asc: true },
   hype: { key: "hype", label: "Model vs Hype", get: (x) => x.hype.gap, show: (x) => <HypeBadge x={x} /> },
   pick: { key: "pick", label: "NFL Pick", get: (x) => x.pick, show: pickLabel, asc: true },
   outcome: { key: "outcome", label: "NFL Outcome", get: (x) => (isPast(x) ? -(x.outcome.best4 ?? 999) : null), show: (x) => (isPast(x) ? <OutcomeBadge x={x} /> : <span className="muted small">Not drafted yet</span>) },
@@ -853,7 +853,7 @@ const GENERAL_TERMS = [
   ["Position grade", `Production plus draft capital, usually 8–15 for real prospects: ${["QB", "RB", "WR", "TE"].map((p) => `${p} = ${gradeFormula(p)}`).join(" · ")}. Fitted so our grades line up with established prospect-model scores.`],
   ["Pre-draft score", "The production part of the grade on its own: the position grade before any draft-capital boost."],
   ["Pre-draft grade", "Where the prospect is projected to go (or went): Top 10, 1st Round, 2nd Round, 3rd Round or Day 3."],
-  ["Draft capital", `A 0–10 grade from draft position on a log scale: #1 = 10, #32 = 8, #64 = 6.5, #100 = 5, #150 = 3.5. The coming class uses its StickToTheModel big-board rank; past classes use the actual pick. Unranked prospects get the lowest grade. The DC boost is the grade points it adds.`],
+  ["Draft capital", `A 0–10 grade from draft position on a log scale: #1 = 10, #32 = 8, #64 = 6.5, #100 = 5, #150 = 3.5. The coming class uses its projected pick; past classes use the actual pick. Unranked prospects get the lowest grade. The DC boost is the grade points it adds.`],
   ["Overall", "The grade's percentile among every prospect at the position (0–100), so a 98.5 grades better than 98.5% of them."],
   ["Z-score", "(Overall − 50) ÷ 28.8, which puts every position on one scale; TEs are discounted slightly. Class order and rookie slots run on it."],
   ["Class tier", "Rookie-draft tiers within a class: a new tier every 0.05 of z-score down from the top."],
@@ -865,7 +865,9 @@ const GENERAL_TERMS = [
   ["Breakout age", `Age on Sept 1 of the first season a player clears the position's dominator bar (${BREAKOUT_LABEL}).`],
   ["Draft age", "Age on draft day. \"est.\" means no birthdate was found, so 18.6 at the start of his first college season is assumed."],
   ["Speed score", "Weight × 200 ÷ (40 time)⁴. Rewards big players who run fast. Only counted when a verified 40 time exists."],
-  ["Projected round", "Big-board rank 1–32 = Round 1, 33–64 = Round 2, 65–100 = Round 3, 101–175 = Rounds 4–5, later = Rounds 6–7."],
+  ["Projected pick", "Players in Jordan Reid's ESPN first-round mock (18 Nov 2026) take that pick. Everyone else follows the big board, starting at pick 33."],
+  ["Projected round", "Projected pick 1–32 = Round 1, 33–64 = Round 2, 65–100 = Round 3, 101–175 = Rounds 4–5, later = Rounds 6–7."],
+  ["Early production", "How often past players at the position, drafted in the same pick range from 2018 on, finished top 24 in full PPR in their first and second NFL seasons. The team does not change these rates."],
   ["NFL outcome", "Best full-PPR positional finish in the draft year and the three seasons after: QB1/RB1/WR1/TE1 = top 12, 2 = top 24, 3 = top 36. \"Too early\" means the four-year window hasn't closed."],
   ["Build", "A size label from height and weight, such as Power or Scatback for backs and Big-bodied X or Slot for receivers."],
   ["Archetype", "A style label from the grade profile, such as Three-down workhorse, Alpha or Dual threat."],
@@ -908,7 +910,7 @@ export function GlossaryView({ pos }) {
       })}
       <div className="card small muted">
         <b style={{ color: "var(--text)" }}>Sources.</b> College stats and team totals: ESPN's public stats pages. Birthdates: Wikipedia and Wikidata ({PROSPECT_CLASS} class) and nflverse (past classes).
-        Big-board ranks: StickToTheModel's {PROSPECT_CLASS} board (read 18 Nov 2026). Draft picks, combine 40s and NFL fantasy finishes: nflverse (CC BY 4.0).
+        Big-board ranks: StickToTheModel's {PROSPECT_CLASS} board (read 18 Nov 2026). First-round picks and teams: Jordan Reid's ESPN mock draft (18 Nov 2026). Draft picks, combine 40s and NFL fantasy finishes: nflverse (CC BY 4.0).
         Not included: PFF charting stats (missed tackles, yards after contact, route data) and conference-strength adjustments, which aren't in free data.
       </div>
     </div>

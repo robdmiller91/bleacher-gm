@@ -12,7 +12,7 @@ export function brief(x) {
     id: x.id, name: x.name, pos: x.pos, school: x.school, class: x.draftYear,
     tier: x.tier.label, grade: round(x.grade), overall: round(x.overall, 1), z: round(x.z),
     posRankInClass: x.posRank,
-    draft: x.pick != null ? `Round ${x.draftRound}, pick ${x.pick}` : x.boardRank ? `projected board rank ${x.boardRank}` : "unranked",
+    draft: x.pick != null ? `Round ${x.draftRound}, pick ${x.pick}` : x.projPick ? `projected pick ${x.projPick}${x.landing ? ` to the ${x.landing.team}` : ""}` : "unranked",
     nflOutcome: x.pick != null ? x.outcome.label.text : "not drafted yet",
   };
 }

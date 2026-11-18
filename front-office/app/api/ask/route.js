@@ -34,11 +34,11 @@ async function loadData(origin) {
     if (!res.ok) throw new Error(`Couldn't load ${f}`);
     return parseCsv(await res.text());
   };
-  const [bio, seasons, hits, histBio, histSeasons] = await Promise.all([
+  const [bio, seasons, hits, histBio, histSeasons, mockRows] = await Promise.all([
     get(`prospects_${PROSPECT_CLASS}.csv`), get("prospect_seasons.csv"), get("prospect_hit_rates.csv"),
-    get("prospect_history.csv"), get("prospect_history_seasons.csv"),
+    get("prospect_history.csv"), get("prospect_history_seasons.csv"), get(`mock_picks_${PROSPECT_CLASS}.csv`),
   ]);
-  const { prospects, history } = buildAll(bio, seasons, histBio, histSeasons);
+  const { prospects, history } = buildAll(bio, seasons, histBio, histSeasons, Date.now(), mockRows);
   cache = { all: [...prospects, ...history], hitRates: buildHitRates(hits), tierHits: tierHitRates(history) };
   return cache;
 }
@@ -47,7 +47,7 @@ const SYSTEM = `You are the assistant for Bleacher GM, a dynasty fantasy footbal
 
 The model: each prospect gets 0-10 grades on college inputs (dominator rating, breakout age, yards per game, efficiency, draft age, size, speed score when a 40 time exists), averaged into a production profile. Position grade = production + a draft-capital boost (the big-board rank for the ${PROSPECT_CLASS} class, the actual pick for past classes), usually 8-15. Overall is the grade's percentile at the position (0-100). Z-score puts all positions on one scale and orders each class. Tiers, best to worst: Cornerstone, Elite (Elite+ / Elite / Elite Lite), Elite Upside, Upside, Upside Lite, Outlier, Outlier Lite, Purgatory. "Model vs hype" compares production with draft capital. NFL outcome is the best full-PPR positional finish in a player's first four seasons (WR1 = top 12, WR2 = top 24, WR3 = top 36).
 
-The data covers the ${PROSPECT_CLASS} class (about 30 top prospects, stats through late October 2026) and QBs, RBs, WRs and TEs drafted 2018-2026 with college stats on ESPN. The 2026 class has only part of its rookie NFL season, so its outcomes show as "Too early". PFF charting stats are not in the data.
+The data covers the ${PROSPECT_CLASS} class (about 260 prospects, stats through mid-November 2026) and QBs, RBs, WRs and TEs drafted 2018-2026 with college stats on ESPN. The 2026 class has only part of its rookie NFL season, so its outcomes show as "Too early". PFF charting stats are not in the data.
 
 How to answer:
 - Use the tools for every fact about a player. Never rely on memory for grades, stats or outcomes, and never invent players. If someone isn't in the data, say so.
