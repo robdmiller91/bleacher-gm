@@ -837,7 +837,7 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard
           {x.notes && <li>{x.notes}</li>}
           {!x.dobKnown && <li>No published birthdate found, so ages assume 18.6 at the start of his first college season ({x.firstSeason}).</li>}
           {!x.forty && <li>No verified 40 time{isPast(x) ? " (didn't run at the combine)" : " yet"}. Speed Score is left out of his grade.</li>}
-          {!isPast(x) && !x.boardRank && <li>Not on the Tankathon big board, so draft capital is priced like pick {UNRANKED_RANK}.</li>}
+          {!isPast(x) && !x.boardRank && <li>Not on the StickToTheModel big board, so draft capital gets the lowest grade.</li>}
           <li>{x.pos} grade = {gradeFormula(x.pos)}. Production is the weighted average of the 0–10 input grades; draft capital is 0–10 from {isPast(x) ? "the actual pick" : "the big-board rank"}.</li>
         </ul>
       </div>
@@ -853,7 +853,7 @@ const GENERAL_TERMS = [
   ["Position grade", `Production plus draft capital, usually 8–15 for real prospects: ${["QB", "RB", "WR", "TE"].map((p) => `${p} = ${gradeFormula(p)}`).join(" · ")}. Fitted so our grades line up with established prospect-model scores.`],
   ["Pre-draft score", "The production part of the grade on its own: the position grade before any draft-capital boost."],
   ["Pre-draft grade", "Where the prospect is projected to go (or went): Top 10, 1st Round, 2nd Round, 3rd Round or Day 3."],
-  ["Draft capital", `A 0–10 grade from draft position on a log scale: #1 = 10, #32 = 8, #64 = 6.5, #100 = 5, #150 = 3.5. The coming class uses its Tankathon big-board rank; past classes use the actual pick. Unranked prospects are priced like #${UNRANKED_RANK}. The DC boost is the grade points it adds.`],
+  ["Draft capital", `A 0–10 grade from draft position on a log scale: #1 = 10, #32 = 8, #64 = 6.5, #100 = 5, #150 = 3.5. The coming class uses its StickToTheModel big-board rank; past classes use the actual pick. Unranked prospects get the lowest grade. The DC boost is the grade points it adds.`],
   ["Overall", "The grade's percentile among every prospect at the position (0–100), so a 98.5 grades better than 98.5% of them."],
   ["Z-score", "(Overall − 50) ÷ 28.8, which puts every position on one scale; TEs are discounted slightly. Class order and rookie slots run on it."],
   ["Class tier", "Rookie-draft tiers within a class: a new tier every 0.05 of z-score down from the top."],
@@ -907,8 +907,8 @@ export function GlossaryView({ pos }) {
         );
       })}
       <div className="card small muted">
-        <b style={{ color: "var(--text)" }}>Sources.</b> College stats and team totals: ESPN's public stats pages. Birthdates: Wikipedia ({PROSPECT_CLASS} class) and nflverse (past classes).
-        Big-board ranks: Tankathon's {PROSPECT_CLASS} board (read 26 Oct 2026). Draft picks, combine 40s and NFL fantasy finishes: nflverse (CC BY 4.0).
+        <b style={{ color: "var(--text)" }}>Sources.</b> College stats and team totals: ESPN's public stats pages. Birthdates: Wikipedia and Wikidata ({PROSPECT_CLASS} class) and nflverse (past classes).
+        Big-board ranks: StickToTheModel's {PROSPECT_CLASS} board (read 18 Nov 2026). Draft picks, combine 40s and NFL fantasy finishes: nflverse (CC BY 4.0).
         Not included: PFF charting stats (missed tackles, yards after contact, route data) and conference-strength adjustments, which aren't in free data.
       </div>
     </div>

@@ -201,7 +201,7 @@ export const gradeFormula = (pos) => {
 };
 
 // Big-board rank → draft capital grade (log scale) and projected round.
-export const UNRANKED_RANK = 200;
+export const UNRANKED_RANK = 726; // One past the last rank on the 725-player board.
 const CAPITAL_ANCHORS =[[1, 10], [5, 9.6], [16, 8.8], [32, 8], [64, 6.5], [100, 5], [150, 3.5], [260, 1]];
 function capitalGrade(rank) {
   if (!rank) return null;
