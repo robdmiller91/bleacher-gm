@@ -837,7 +837,7 @@ export function ReportCard({ x, classList, history, hitRates, tierHits, hypeCard
           {x.notes && <li>{x.notes}</li>}
           {!x.dobKnown && <li>No published birthdate found, so ages assume 18.6 at the start of his first college season ({x.firstSeason}).</li>}
           {!x.forty && <li>No verified 40 time{isPast(x) ? " (didn't run at the combine)" : " yet"}. Speed Score is left out of his grade.</li>}
-          {!isPast(x) && !x.boardRank && <li>Not on the StickToTheModel big board, so draft capital gets the lowest grade.</li>}
+          {!isPast(x) && !x.projPick && <li>Not on any tracked big board, so draft capital gets the lowest grade.</li>}
           <li>{x.pos} grade = {gradeFormula(x.pos)}. Production is the weighted average of the 0–10 input grades; draft capital is 0–10 from {isPast(x) ? "the actual pick" : "the big-board rank"}.</li>
         </ul>
       </div>
@@ -865,7 +865,7 @@ const GENERAL_TERMS = [
   ["Breakout age", `Age on Sept 1 of the first season a player clears the position's dominator bar (${BREAKOUT_LABEL}).`],
   ["Draft age", "Age on draft day. \"est.\" means no birthdate was found, so 18.6 at the start of his first college season is assumed."],
   ["Speed score", "Weight × 200 ÷ (40 time)⁴. Rewards big players who run fast. Only counted when a verified 40 time exists."],
-  ["Projected pick", "Players in Jordan Reid's ESPN first-round mock (18 Nov 2026) take that pick. Everyone else follows the big board, starting at pick 33."],
+  ["Projected pick", "The median of every source that ranks him: StickToTheModel, Tankathon, DraftTek, Pro Football Network and Jordan Reid's ESPN mock (18 Nov 2026). Ties move to the next open pick."],
   ["Projected round", "Projected pick 1–32 = Round 1, 33–64 = Round 2, 65–100 = Round 3, 101–175 = Rounds 4–5, later = Rounds 6–7."],
   ["Early production", "How often past players at the position, drafted in the same pick range from 2018 on, finished top 24 in full PPR in their first and second NFL seasons. The team does not change these rates."],
   ["NFL outcome", "Best full-PPR positional finish in the draft year and the three seasons after: QB1/RB1/WR1/TE1 = top 12, 2 = top 24, 3 = top 36. \"Too early\" means the four-year window hasn't closed."],
@@ -910,7 +910,7 @@ export function GlossaryView({ pos }) {
       })}
       <div className="card small muted">
         <b style={{ color: "var(--text)" }}>Sources.</b> College stats and team totals: ESPN's public stats pages. Birthdates: Wikipedia and Wikidata ({PROSPECT_CLASS} class) and nflverse (past classes).
-        Big-board ranks: StickToTheModel's {PROSPECT_CLASS} board (read 18 Nov 2026). First-round picks and teams: Jordan Reid's ESPN mock draft (18 Nov 2026). Draft picks, combine 40s and NFL fantasy finishes: nflverse (CC BY 4.0).
+        Projected picks: the median of StickToTheModel, Tankathon, DraftTek and Pro Football Network boards and Jordan Reid's ESPN mock draft (all read 18 Nov 2026). Draft picks, combine 40s and NFL fantasy finishes: nflverse (CC BY 4.0).
         Not included: PFF charting stats (missed tackles, yards after contact, route data) and conference-strength adjustments, which aren't in free data.
       </div>
     </div>

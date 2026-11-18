@@ -394,7 +394,7 @@ export const espnHeadshot = (id) =>
   id ? `https://a.espncdn.com/combiner/i?img=/i/headshots/college-football/players/full/${id}.png&w=350&h=254` : null;
 
 // Both the coming class and the past classes, graded together so crowded rooms see each other.
-export function buildAll(bioRows, seasonRows, histBio, histSeasons, now = Date.now(), mockRows = []) {
+export function buildAll(bioRows, seasonRows, histBio, histSeasons, now = Date.now(), mockRows = [], consensusRows = []) {
   const current = seasonsById(seasonRows);
   const past = seasonsById(histSeasons);
   attachRooms([
@@ -402,30 +402,13 @@ export function buildAll(bioRows, seasonRows, histBio, histSeasons, now = Date.n
     ...histBio.filter(isSkill).map((r) => ({ id: r["Player Id"], pos: r.Position.toUpperCase(), counts: num(r.Round) <= 3, seasons: past[r["Player Id"]] || [] })),
   ]);
   const history = buildHistory(histBio, past, now);
-  const prospects = buildProspects(bioRows, current, now, mockRows);
+  const prospects = buildProspects(bioRows, current, now, mockRows, consensusRows);
   attachComps([...prospects, ...history], history);
   return { prospects, history };
 }
 
-// Projected draft order: players in the mock keep their mock pick. Everyone else follows the big board,
-// starting after the mocked picks because the mock has already filled those slots.
-function projectPicks(bioRows, mockRows) {
-  const mock = Object.fromEntries(mockRows.map((r) => [slug(r.Player), r]));
-  const picks = {};
-  const taken = new Set(mockRows.map((r) => Number(r.Pick)));
-  for (const r of mockRows) picks[slug(r.Player)] = Number(r.Pick);
-  const firstOpen = mockRows.length + 1;
-  const rest = bioRows
-    .filter((r) => isSkill(r) && !mock[slug(r.Player)] && num(r["Board Rank"]))
-    .sort((a, b) => num(a["Board Rank"]) - num(b["Board Rank"]));
-  for (const r of rest) {
-    let pick = Math.max(num(r["Board Rank"]), firstOpen);
-    while (taken.has(pick)) pick++;
-    taken.add(pick);
-    picks[slug(r.Player)] = pick;
-  }
-  return { picks, mock };
-}
+// A mock's team only counts as his landing spot when the consensus has him going near that pick.
+const LANDING_RANGE = 10;
 
 // Past results for players drafted in the same range at the same position.
 export function earlyOutlook(pos, pick, rows) {
@@ -439,18 +422,25 @@ export function earlyOutlook(pos, pick, rows) {
 }
 
 // The coming class: rows from prospects_<year>.csv and prospect_seasons.csv (by player id).
-function buildProspects(bioRows, seasonsBy, now, mockRows = []) {
-  const { picks, mock } = projectPicks(bioRows, mockRows);
+function buildProspects(bioRows, seasonsBy, now, mockRows = [], consensusRows = []) {
+  const mock = Object.fromEntries(mockRows.map((r) => [slug(r.Player), r]));
+  const consensus = Object.fromEntries(consensusRows.map((r) => [slug(r.Player), r]));
   const list = bioRows.filter(isSkill).map((r) => {
     const id = slug(r.Player);
     const boardRank = num(r["Board Rank"]);
-    const projPick = picks[id] || null;
+    // The median of every board that ranks him, so no single board or mock can move him far.
+    const c = consensus[id];
+    const projPick = num(c?.["Projected Pick"]) || null;
     const x = gradeProspect(r, seasonsBy[id] || [], { id, draftYear: PROSPECT_CLASS, capitalRank: projPick, now });
     x.boardRank = boardRank;
     x.projPick = projPick;
     x.round = projectedRound(projPick);
     const m = mock[id];
-    x.landing = m ? { team: m.Team, via: m.Via, leader: m["Room Leader"], share: Number(m["Leader Share"]), volumeRank: Number(m["Volume Rank"]) } : null;
+    x.boardCount = Number(c?.Sources) || 0;
+    x.mockPick = m ? { pick: Number(m.Pick), team: m.Team } : null;
+    x.landing = m && projPick && Math.abs(projPick - Number(m.Pick)) <= LANDING_RANGE
+      ? { team: m.Team, via: m.Via, leader: m["Room Leader"], share: Number(m["Leader Share"]), volumeRank: Number(m["Volume Rank"]) }
+      : null;
     // Local photo (public/img/prospects/<id>.jpg); replaced by the ESPN college headshot when there's an ESPN id.
     x.img = r.Image || `/img/prospects/${id}.jpg`;
     // Full photos (not transparent cut-outs like Sleeper's), so cards crop them to fill.
@@ -620,12 +610,12 @@ function attachComps(list, history) {
 
 export async function loadProspectData() {
   const get = (f) => fetch(`/data/${f}`).then((r) => (r.ok ? r.text() : "")).then(parseCsv);
-  const [bio, seasons, hits, histBio, histSeasons, espn, mockRows, earlyRows] = await Promise.all([
+  const [bio, seasons, hits, histBio, histSeasons, espn, mockRows, earlyRows, consensusRows] = await Promise.all([
     get(`prospects_${PROSPECT_CLASS}.csv`), get("prospect_seasons.csv"), get("prospect_hit_rates.csv"),
     get("prospect_history.csv"), get("prospect_history_seasons.csv"), get("espn_ids.csv"),
-    get(`mock_picks_${PROSPECT_CLASS}.csv`), get("prospect_early_rates.csv"),
+    get(`mock_picks_${PROSPECT_CLASS}.csv`), get("prospect_early_rates.csv"), get(`draft_consensus_${PROSPECT_CLASS}.csv`),
   ]);
-  const { prospects, history } = buildAll(bio, seasons, histBio, histSeasons, Date.now(), mockRows);
+  const { prospects, history } = buildAll(bio, seasons, histBio, histSeasons, Date.now(), mockRows, consensusRows);
   for (const x of prospects) x.early = earlyOutlook(x.pos, x.projPick, earlyRows);
   // Prospects (and past picks without a Sleeper headshot) show their ESPN college headshot and link to the profile.
   const espnIds = Object.fromEntries(espn.map((r) => [slug(r.Player), (r["ESPN Id"] || "").trim()]));

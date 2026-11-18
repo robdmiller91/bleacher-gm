@@ -34,11 +34,11 @@ async function loadData(origin) {
     if (!res.ok) throw new Error(`Couldn't load ${f}`);
     return parseCsv(await res.text());
   };
-  const [bio, seasons, hits, histBio, histSeasons, mockRows] = await Promise.all([
+  const [bio, seasons, hits, histBio, histSeasons, mockRows, consensusRows] = await Promise.all([
     get(`prospects_${PROSPECT_CLASS}.csv`), get("prospect_seasons.csv"), get("prospect_hit_rates.csv"),
-    get("prospect_history.csv"), get("prospect_history_seasons.csv"), get(`mock_picks_${PROSPECT_CLASS}.csv`),
+    get("prospect_history.csv"), get("prospect_history_seasons.csv"), get(`mock_picks_${PROSPECT_CLASS}.csv`), get(`draft_consensus_${PROSPECT_CLASS}.csv`),
   ]);
-  const { prospects, history } = buildAll(bio, seasons, histBio, histSeasons, Date.now(), mockRows);
+  const { prospects, history } = buildAll(bio, seasons, histBio, histSeasons, Date.now(), mockRows, consensusRows);
   cache = { all: [...prospects, ...history], hitRates: buildHitRates(hits), tierHits: tierHitRates(history) };
   return cache;
 }

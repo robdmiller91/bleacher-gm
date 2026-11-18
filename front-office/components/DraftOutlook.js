@@ -25,12 +25,12 @@ export default function DraftOutlook({ x, data }) {
         <div>
           <small>NFL draft</small>
           <b style={{ color: "var(--te)" }}>{slot ? `Rd ${slot.round} · pick ${slot.pick}` : "Undrafted"}</b>
-          <span>{slot ? `No. ${slot.overall} overall · ` : ""}{draftedChance(x.projPick)}% drafted</span>
+          <span>{slot ? `No. ${slot.overall} overall · median of ${x.boardCount} ${x.boardCount === 1 ? "source" : "sources"} · ` : ""}{draftedChance(x.projPick)}% drafted</span>
         </div>
         <div>
           <small>Landing spot</small>
           <b style={{ fontSize: "1.1rem" }}>{team ? team.team : "No team yet"}</b>
-          <span>{team ? `Jordan Reid mock, 18 Nov${team.via ? ` · ${team.via}` : ""}` : "Only first-round picks have a team"}</span>
+          <span>{team ? `Jordan Reid mock, pick ${x.mockPick.pick}${team.via ? ` · ${team.via}` : ""}` : x.mockPick ? `Reid mock has him at ${x.mockPick.pick} to ${x.mockPick.team}, well above the other boards` : "No mock team near this pick"}</span>
         </div>
         <div>
           <small>Early production</small>
