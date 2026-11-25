@@ -577,33 +577,65 @@ export function closestProfiles(x, list, n = 5) {
 }
 
 
-// NFL comps for every prospect, from past players at the position whose grade profiles sit closest
-// (drafted 2018 on, so each comp is a real NFL career):
+// NFL comps for every prospect, from past players at the position drafted in a similar range whose
+// grade profiles sit closest (drafted 2018 on, so each comp is a real NFL career):
 //   ceiling - of the COMP_POOL nearest, the one whose career went best: the outcome if all goes right
 //   floor   - the nearest one who missed (no top-36 season in a complete four-year window)
 // The pool stays small: with 12, the ceiling was often the 11th or 12th closest profile, and a few stars
 // (Brian Thomas Jr., Josh Jacobs, Sam LaPorta) won for a large share of the class just by making the list.
+// Draft range matters as much as production: teams invest in and play a top-10 pick differently from a
+// Day 3 pick, so a projected first-rounder isn't comped to a sixth-round miss with a similar stat line.
+// Comps come from within CAPITAL_WINDOW draft-capital points (about pick 5 vs pick 29, or pick 50 vs
+// pick 90), widened step by step only when too few past players fall inside it.
 const COMP_POOL = 6;
+const CAPITAL_WINDOWS = [1.5, 2.5, 4, Infinity];
+function compPool(x, known) {
+  const scored = closestProfiles(x, known, Infinity).map(({ y, d }) => {
+    const gap = Math.abs((x.capital ?? 1) - (y.capital ?? 1));
+    return { y, gap, d: Math.sqrt(d * d + gap * gap) };
+  });
+  // Everyone in the draft window, closest first; the ceiling comes from the first COMP_POOL.
+  for (const w of CAPITAL_WINDOWS) {
+    const inWindow = scored.filter((c) => c.gap <= w);
+    if (inWindow.length >= COMP_POOL) return inWindow.sort((a, b) => a.d - b.d);
+  }
+  return scored.sort((a, b) => a.d - b.d);
+}
 const finish = (y) => y.outcome.best ?? y.outcome.best4 ?? 999;
+// A floor comp missed: no season inside this finish in his first four years. Leagues start about one QB
+// and one TE per team, so a QB24 or TE24 season is already a bench year; RBs and WRs flex down to 36.
+const FLOOR_MISS = { QB: 24, TE: 24, RB: 36, WR: 36 };
 const compOf = ({ y, d }, kind) => ({
   id: y.id, name: y.name, draftYear: y.draftYear, pick: y.pick, school: y.school, d,
-  // Best positional finish in any NFL season so far.
-  label: y.outcome.best != null ? `${kind === "ceiling" ? "Peak" : "Best"} ${y.pos}${y.outcome.best}` : y.outcome.seasons ? "No top finishes" : "No NFL stats",
+  // Ceiling: best positional finish in any NFL season so far. Floor: best in his first four seasons,
+  // the window that made him a miss (Sam Darnold's QB9 came in year seven).
+  label:
+    kind === "floor" && y.outcome.complete
+      ? y.outcome.best4 != null ? `Best ${y.pos}${y.outcome.best4} in 4 yrs` : "No top finish in 4 yrs"
+      : y.outcome.best != null ? `${kind === "ceiling" ? "Peak" : "Best"} ${y.pos}${y.outcome.best}` : y.outcome.seasons ? "No top finishes" : "No NFL stats",
 });
 function attachComps(list, history) {
   const known = history.filter((y) => y.outcome.best != null || y.outcome.complete);
   for (const x of list) {
-    const near = closestProfiles(x, known.filter((y) => y.draftYear !== x.draftYear), COMP_POOL);
+    const inWindow = compPool(x, known.filter((y) => y.draftYear !== x.draftYear));
+    const near = inWindow.slice(0, COMP_POOL);
     if (!near.length) {
       x.comps = null;
       continue;
     }
+    // A ceiling has to be a real result: a top-24 season, or a finished four-year window. A rookie with
+    // one middling season (Athan Kaliakmanis, QB43) isn't "if it all goes right".
     const hits = near.filter((c) => finish(c.y) <= 24);
-    const ceiling = [...(hits.length ? hits : near)].sort((a, b) => finish(a.y) - finish(b.y) || a.d - b.d)[0];
+    const proven = near.filter((c) => c.y.outcome.complete);
+    const ceiling = [...(hits.length ? hits : proven.length ? proven : near)].sort((a, b) => finish(a.y) - finish(b.y) || a.d - b.d)[0];
+    // A floor is the closest finished career in the draft window that missed (looking past the nearest
+    // COMP_POOL, so a pool of hits doesn't hand a top-10 TE season in as the floor); failing that,
+    // the worst finished career nearby, and only then someone still inside his first four years.
     const rest = near.filter((c) => c !== ceiling);
-    const floor =
-      rest.find((c) => c.y.outcome.complete && !(c.y.outcome.best4 <= 36)) ||
-      [...rest].sort((a, b) => finish(b.y) - finish(a.y) || a.d - b.d)[0];
+    const done = rest.filter((c) => c.y.outcome.complete);
+    const worst = (l) => [...l].sort((a, b) => finish(b.y) - finish(a.y) || a.d - b.d)[0];
+    const missed = (y) => y.outcome.complete && !(y.outcome.best4 <= FLOOR_MISS[y.pos]);
+    const floor = inWindow.find((c) => c !== ceiling && missed(c.y)) || worst(done) || worst(rest);
     x.comps = { ceiling: compOf(ceiling, "ceiling"), floor: floor ? compOf(floor, "floor") : null };
   }
 }

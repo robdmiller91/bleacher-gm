@@ -93,6 +93,9 @@ export function pickOrder(s) {
 }
 export const pickLabel = (c) => `${c.round}.${c.inRound}`;
 
+// Projected NFL picks up to here (the end of round 3) count as a late riser when no rookie board lists them.
+const RISER_MAX_PICK = 100;
+
 // The draft pool: the graded class, then everyone else on the outside rookie boards, then anything
 // added by hand. Each player gets an ADP for the chosen rankings and scoring.
 export function buildPool({ prospects, boards = [], idp = [], custom, espnIds = {} }, s) {
@@ -128,10 +131,15 @@ export function buildPool({ prospects, boards = [], idp = [], custom, espnIds = 
     for (const c of custom.filter((c) => IDP_POSITIONS.includes(c.pos))) defenders.push({ id: `c-${slug(c.name)}`, name: c.name, pos: c.pos, school: c.school, cons: null, nfl: null, bgm: null, custom: true });
   }
 
+  // A late riser the rookie boards haven't listed yet slots in by projected NFL pick within the class,
+  // just behind the listed player at that number, instead of falling behind every listed player.
+  const byPick = prospects.filter((x) => x.projPick).sort((a, b) => a.projPick - b.projPick);
+  const riserRank = (p) => (p.x?.projPick <= RISER_MAX_PICK ? byPick.findIndex((x) => x.id === p.id) + 1.5 : null);
+
   // Players without the chosen ranking keep their place behind those who have one.
   const base = list.map((p, i) => ({ p, i }));
   const rankOf = {
-    consensus: (p) => p.cons,
+    consensus: (p) => p.cons ?? riserRank(p),
     nfl: (p) => p.nfl,
     bgm: (p) => (p.bgm == null ? null : 1000 - p.bgm),
   }[s.rankings] || ((p) => p.cons);
